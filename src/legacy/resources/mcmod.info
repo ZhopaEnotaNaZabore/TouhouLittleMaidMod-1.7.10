@@ -1,0 +1,15 @@
+[
+  {
+    "modid": "touhou_little_maid",
+    "name": "Touhou Little Maid",
+    "description": "Forge 1.7.10 port of Touhou Little Maid.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "https://github.com/TartaricAcid/TouhouLittleMaid",
+    "authorList": ["TartaricAcid", "TLMM port contributors"],
+    "credits": "ZUN, Verclene and the Touhou Little Maid contributors",
+    "logoFile": "logo.png",
+    "screenshots": [],
+    "dependencies": []
+  }
+]

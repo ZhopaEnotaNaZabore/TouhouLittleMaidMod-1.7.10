@@ -1,0 +1,3 @@
+package com.github.tartaricacid.touhoulittlemaid.client.chat;
+import java.util.Map;import java.util.concurrent.ConcurrentHashMap;
+public final class ClientChatBubbles {private static final Map<Integer,Entry> DATA=new ConcurrentHashMap<Integer,Entry>();private ClientChatBubbles(){}public static void put(int id,String text,boolean error){DATA.put(id,new Entry(text,error,System.currentTimeMillis()+10000));}public static Entry get(int id){Entry e=DATA.get(id);if(e!=null&&e.expires<System.currentTimeMillis()){DATA.remove(id);return null;}return e;}public static final class Entry{public final String text;public final boolean error;final long expires;Entry(String t,boolean e,long x){text=t;error=e;expires=x;}}}

@@ -1,0 +1,4 @@
+package com.github.tartaricacid.touhoulittlemaid.ai;
+import java.io.BufferedReader;import java.io.InputStream;import java.io.InputStreamReader;
+/** Classpath resource replacement for modern prompt reload data. */
+public final class LegacyPromptLoader{private static volatile String prompt="You are a helpful Minecraft maid. Reply briefly.";private LegacyPromptLoader(){}public static String get(){return prompt;}public static void reload(){InputStream in=LegacyPromptLoader.class.getResourceAsStream("/assets/touhou_little_maid/ai/legacy_prompt.txt");if(in==null)return;try{BufferedReader r=new BufferedReader(new InputStreamReader(in,"UTF-8"));StringBuilder b=new StringBuilder();String line;while((line=r.readLine())!=null){if(b.length()>0)b.append('\n');b.append(line);}r.close();if(b.length()>0)prompt=b.toString();}catch(Exception ignored){}}static{reload();}}

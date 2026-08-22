@@ -1,0 +1,345 @@
+{
+  "maid.mode.idle": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.idle",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle1",
+      "littlemaid_peco:maid/mode/idle2",
+      "littlemaid_peco:maid/mode/idle3",
+      "littlemaid_peco:maid/mode/idle4",
+      "littlemaid_peco:maid/mode/idle5"
+    ]
+  },
+  "maid.mode.attack": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.attack",
+    "sounds": [
+      "littlemaid_peco:maid/mode/attack1",
+      "littlemaid_peco:maid/mode/attack2",
+      "littlemaid_peco:maid/mode/attack3"
+    ]
+  },
+  "maid.mode.range_attack": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.range_attack",
+    "sounds": [
+      "littlemaid_peco:maid/mode/range_attack1",
+      "littlemaid_peco:maid/mode/range_attack2",
+      "littlemaid_peco:maid/mode/range_attack3"
+    ]
+  },
+  "maid.mode.danmaku_attack": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.danmaku_attack",
+    "sounds": [
+      "littlemaid_peco:maid/mode/range_attack1",
+      "littlemaid_peco:maid/mode/range_attack2"
+    ]
+  },
+  "maid.mode.farm": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.farm",
+    "sounds": [
+      "littlemaid_peco:maid/mode/farm1",
+      "littlemaid_peco:maid/mode/farm2"
+    ]
+  },
+  "maid.mode.feed": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.feed",
+    "sounds": [
+      "littlemaid_peco:maid/mode/feed1",
+      "littlemaid_peco:maid/mode/feed2"
+    ]
+  },
+  "maid.mode.shears": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.shears",
+    "sounds": [
+      "littlemaid_peco:maid/mode/farm3",
+      "littlemaid_peco:maid/mode/farm4"
+    ]
+  },
+  "maid.mode.milk": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.milk",
+    "sounds": [
+      "littlemaid_peco:maid/mode/feed3",
+      "littlemaid_peco:maid/mode/feed4"
+    ]
+  },
+  "maid.mode.torch": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.torch",
+    "sounds": [
+      "littlemaid_peco:maid/mode/torch1",
+      "littlemaid_peco:maid/mode/torch2"
+    ]
+  },
+  "maid.mode.feed_animal": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.feed_animal",
+    "sounds": [
+      "littlemaid_peco:maid/mode/feed5",
+      "littlemaid_peco:maid/mode/feed6"
+    ]
+  },
+  "maid.mode.extinguishing": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.extinguishing",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle1",
+      "littlemaid_peco:maid/mode/idle2"
+    ]
+  },
+  "maid.mode.snow": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.snow",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle3",
+      "littlemaid_peco:maid/mode/idle4"
+    ]
+  },
+  "maid.mode.break": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.break",
+    "sounds": [
+      "littlemaid_peco:maid/mode/attack1",
+      "littlemaid_peco:maid/mode/attack2"
+    ]
+  },
+  "maid.mode.furnace": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.furnace",
+    "sounds": [
+      "littlemaid_peco:maid/mode/furnace1",
+      "littlemaid_peco:maid/mode/furnace2"
+    ]
+  },
+  "maid.mode.brewing": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.mode.brewing",
+    "sounds": [
+      "littlemaid_peco:maid/mode/furnace3",
+      "littlemaid_peco:maid/mode/furnace4"
+    ]
+  },
+  "maid.ai.find_target": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.find_target",
+    "sounds": [
+      "littlemaid_peco:maid/ai/find_target1",
+      "littlemaid_peco:maid/ai/find_target2"
+    ]
+  },
+  "maid.ai.hurt": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.hurt",
+    "sounds": [
+      "littlemaid_peco:maid/ai/hurt1",
+      "littlemaid_peco:maid/ai/hurt2",
+      "littlemaid_peco:maid/ai/hurt3"
+    ]
+  },
+  "maid.ai.hurt_fire": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.hurt_fire",
+    "sounds": [
+      "littlemaid_peco:maid/ai/hurt_fire1",
+      "littlemaid_peco:maid/ai/hurt_fire2"
+    ]
+  },
+  "maid.ai.hurt_player": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.hurt_player",
+    "sounds": [
+      "littlemaid_peco:maid/ai/hurt1",
+      "littlemaid_peco:maid/ai/hurt2"
+    ]
+  },
+  "maid.ai.tamed": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.tamed",
+    "sounds": [
+      "littlemaid_peco:maid/ai/tamed1",
+      "littlemaid_peco:maid/ai/tamed2",
+      "littlemaid_peco:maid/ai/tamed3"
+    ]
+  },
+  "maid.ai.item_get": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.item_get",
+    "sounds": [
+      "littlemaid_peco:maid/ai/item_get1",
+      "littlemaid_peco:maid/ai/item_get2"
+    ]
+  },
+  "maid.ai.death": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.death",
+    "sounds": [
+      "littlemaid_peco:maid/ai/death1",
+      "littlemaid_peco:maid/ai/death2",
+      "littlemaid_peco:maid/ai/death3"
+    ]
+  },
+  "maid.ai.game_win": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.game_win",
+    "sounds": [
+      "littlemaid_peco:maid/ai/tamed1",
+      "littlemaid_peco:maid/ai/tamed2"
+    ]
+  },
+  "maid.ai.game_lost": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.ai.game_lost",
+    "sounds": [
+      "littlemaid_peco:maid/ai/hurt2",
+      "littlemaid_peco:maid/ai/hurt3"
+    ]
+  },
+  "maid.environment.hot": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.environment.hot",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle5"
+    ]
+  },
+  "maid.environment.cold": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.environment.cold",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle6"
+    ]
+  },
+  "maid.environment.rain": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.environment.rain",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle7"
+    ]
+  },
+  "maid.environment.snow": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.environment.snow",
+    "sounds": [
+      "littlemaid_peco:maid/mode/idle8"
+    ]
+  },
+  "maid.environment.morning": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.environment.morning",
+    "sounds": [
+      "littlemaid_peco:maid/environment/morning1",
+      "littlemaid_peco:maid/environment/morning2"
+    ]
+  },
+  "maid.environment.night": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.maid.environment.night",
+    "sounds": [
+      "littlemaid_peco:maid/environment/night1",
+      "littlemaid_peco:maid/environment/night2"
+    ]
+  },
+  "maid.credit": {
+    "category": "player",
+    "subtitle": "subtitle.touhou_little_maid.other.credit",
+    "sounds": [
+      "littlemaid_peco:maid/ai/tamed3"
+    ]
+  },
+  "maid.ai_chat": {
+    "category": "player",
+    "subtitle": "subtitle.touhou_little_maid.ai_chat",
+    "sounds": [
+      {
+        "name": "littlemaid_peco:maid/mode/idle1",
+        "stream": true
+      }
+    ]
+  },
+  "item.camera_use": {
+    "category": "player",
+    "subtitle": "subtitle.touhou_little_maid.item.camera_use",
+    "sounds": [
+      {
+        "name": "touhou_little_maid:item/camera_use",
+        "stream": true
+      }
+    ]
+  },
+  "block.altar_craft": {
+    "category": "block",
+    "subtitle": "subtitle.touhou_little_maid.block.altar_craft",
+    "sounds": [
+      "touhou_little_maid:block/altar_craft_1",
+      "touhou_little_maid:block/altar_craft_2"
+    ]
+  },
+  "block.gomoku": {
+    "category": "block",
+    "subtitle": "subtitle.touhou_little_maid.block.gomoku",
+    "sounds": [
+      "touhou_little_maid:block/piece"
+    ]
+  },
+  "block.gomoku_reset": {
+    "category": "block",
+    "subtitle": "subtitle.touhou_little_maid.block.gomoku_reset",
+    "sounds": [
+      "touhou_little_maid:block/gomoku_reset"
+    ]
+  },
+  "entity.box": {
+    "category": "neutral",
+    "subtitle": "subtitle.touhou_little_maid.entity.box",
+    "sounds": [
+      "touhou_little_maid:entity/box"
+    ]
+  },
+  "item.compass": {
+    "category": "player",
+    "subtitle": "subtitle.touhou_little_maid.item.compass",
+    "sounds": [
+      "touhou_little_maid:item/point"
+    ]
+  },
+  "entity.fairy.ambient": {
+    "sounds": [
+      "minecraft:mob/bat/idle1",
+      "minecraft:mob/bat/idle2",
+      "minecraft:mob/bat/idle3",
+      "minecraft:mob/bat/idle4"
+    ],
+    "subtitle": "subtitle.touhou_little_maid.entity.fairy.ambient"
+  },
+  "entity.fairy.death": {
+    "sounds": [
+      "minecraft:mob/bat/death"
+    ],
+    "subtitle": "subtitle.touhou_little_maid.entity.fairy.death"
+  },
+  "entity.fairy.hurt": {
+    "sounds": [
+      "minecraft:mob/bat/hurt1",
+      "minecraft:mob/bat/hurt2",
+      "minecraft:mob/bat/hurt3",
+      "minecraft:mob/bat/hurt4"
+    ],
+    "subtitle": "subtitle.touhou_little_maid.entity.fairy.hurt"
+  },
+  "ui.recording_start": {
+    "sounds": [
+      "touhou_little_maid:ui/recording_start"
+    ],
+    "subtitle": "subtitle.touhou_little_maid.ui.recording_start"
+  },
+  "ui.recording_end": {
+    "sounds": [
+      "touhou_little_maid:ui/recording_end"
+    ],
+    "subtitle": "subtitle.touhou_little_maid.ui.recording_end"
+  }
+}
