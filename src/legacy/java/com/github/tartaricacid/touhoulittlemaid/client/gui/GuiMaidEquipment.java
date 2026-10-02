@@ -18,8 +18,8 @@ public final class GuiMaidEquipment extends AbstractGuiMaid {
 
     @Override
     protected void drawPageForeground(int mouseX, int mouseY) {
-        fontRendererObj.drawString("Equipment", 88, 27, 0x404040);
-        fontRendererObj.drawString("Main", 83, 96, 0x404040);
-        fontRendererObj.drawString("Off", 119, 96, 0x404040);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.equipment"), 88, 27, 0x404040);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.main_hand"), 83, 96, 0x404040);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.off_hand"), 119, 96, 0x404040);
     }
 }

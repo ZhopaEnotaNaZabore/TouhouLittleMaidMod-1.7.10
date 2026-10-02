@@ -50,7 +50,7 @@ public final class ItemFilm extends Item {
     public static boolean filmToMaid(ItemStack film, World world, int x, int y, int z, EntityPlayer player) {
         if (!hasMaidData(film)) return false;
         if (!world.isRemote) {
-            if(!canRestore(film)){player.addChatMessage(new net.minecraft.util.ChatComponentText("This maid is already loaded"));return false;}
+            if(!canRestore(film)){player.addChatMessage(new net.minecraft.util.ChatComponentTranslation("message.touhou_little_maid.already_loaded"));return false;}
             EntityMaid maid = new EntityMaid(world);
             maid.readFromNBT(film.getTagCompound().getCompoundTag(MAID_INFO));
             maid.setPosition(x + 0.5D, y, z + 0.5D);

@@ -18,10 +18,12 @@ public final class FavorabilityManager {
     private final EntityMaid maid; private final Map<String,Integer> cooldowns=new HashMap<String,Integer>();
     public FavorabilityManager(EntityMaid maid){this.maid=maid;}
     public void tick(){for(Map.Entry<String,Integer> e:cooldowns.entrySet())if(e.getValue()>0)e.setValue(e.getValue()-1);}
+    public boolean canApply(String event){Integer left=cooldowns.get(event);return left==null||left<=0;}
     public boolean apply(String event,int points,int cooldown){Integer left=cooldowns.get(event);if(left!=null&&left>0)return false;add(points);cooldowns.put(event,cooldown);return true;}
     public void add(int amount){int before=getLevel();maid.setFavorability(clamp(maid.getFavorability()+amount,0,384));int after=getLevel();if(before!=after){applyAttributes();if(before<3&&after>=3){Entity owner=maid.getOwner();if(owner instanceof EntityPlayer)((EntityPlayer)owner).triggerAchievement(ModAchievements.DEVOTED);}}}
     public void reduceWithoutLevel(int amount){add(-amount);}
     public int getLevel(){int p=maid.getFavorability();return p<64?0:p<192?1:p<384?2:3;}
+    public double getLevelPercent(){int level=getLevel();return level>=3?0:(maid.getFavorability()-POINTS[level])/(double)(POINTS[level+1]-POINTS[level]);}
     public int nextLevelPoint(){int level=getLevel();return level>=3?0:POINTS[level+1]-maid.getFavorability();}
     public void applyAttributes(){int level=getLevel();maid.getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(HEALTH[level]);maid.getEntityAttribute(SharedMonsterAttributes.attackDamage).setBaseValue(ATTACK[level]);if(maid.getHealth()>maid.getMaxHealth())maid.setHealth(maid.getMaxHealth());}
     public void writeToNBT(NBTTagCompound root){NBTTagCompound data=new NBTTagCompound();for(Map.Entry<String,Integer> e:cooldowns.entrySet())data.setInteger(e.getKey(),e.getValue());root.setTag(TAG_NAME,data);}

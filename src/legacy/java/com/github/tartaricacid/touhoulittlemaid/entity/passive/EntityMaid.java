@@ -106,6 +106,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     private static final int WATCHER_SOUND_PACK_ID = 28;
     private static final int WATCHER_FISHING_ACTIVE = 29;
     private static final int WATCHER_BACKPACK_TYPE = 30;
+    private static final int WATCHER_OFFHAND = 31;
 
     private static final int FLAG_PICKUP = 1;
     private static final int FLAG_HOME_MODE = 2;
@@ -175,6 +176,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         dataWatcher.addObject(WATCHER_SOUND_PACK_ID, DEFAULT_SOUND_PACK_ID);
         dataWatcher.addObject(WATCHER_FISHING_ACTIVE, (byte) 0);
         dataWatcher.addObject(WATCHER_BACKPACK_TYPE, "empty");
+        dataWatcher.addObjectByDataType(WATCHER_OFFHAND, 5);
     }
 
     @Override
@@ -296,9 +298,9 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
             if (!worldObj.isRemote) equipBackpack(player, held, (ItemMaidBackpack) held.getItem());
             return true;
         }
-        if (held != null && held.getItem() instanceof ItemMaidBauble) {
+        if (isBauble(held)) {
             if (!worldObj.isRemote) {
-                for (int slot = 0; slot < maidBaubleInventory.getSizeInventory(); slot++) if (maidBaubleInventory.getStackInSlot(slot) == null) {
+                for (int slot = 0; slot < getBaubleCapacity(); slot++) if (maidBaubleInventory.getStackInSlot(slot) == null) {
                     ItemStack one = held.copy(); one.stackSize = 1; maidBaubleInventory.setInventorySlotContents(slot, one);
                     consumeOne(player, held); worldObj.playSoundAtEntity(this, "random.pop", 0.5F, 1.3F); break;
                 }
@@ -624,6 +626,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         if (tag.hasKey(SOUND_PACK_ID_TAG)) setSoundPackId(tag.getString(SOUND_PACK_ID_TAG));
         if (tag.hasKey(TASK_TAG)) taskId = tag.getString(TASK_TAG);
         if (!TaskManager.getTasks().containsKey(taskId)) taskId = TaskManager.IDLE_ID;
+        dataWatcher.updateObject(WATCHER_TASK_INDEX, TaskManager.indexOf(taskId));
         setHunger(tag.hasKey(HUNGER_TAG) ? tag.getInteger(HUNGER_TAG) : 100);
         setFavorability(tag.getInteger(FAVORABILITY_TAG));
         setMaidExperience(tag.getInteger(EXPERIENCE_TAG));
@@ -675,6 +678,9 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     public InventoryBasic getMaidInventory() {
         return maidInventory;
     }
+    public ItemStack getOffhandItem() { return worldObj.isRemote ? dataWatcher.getWatchableObjectItemStack(WATCHER_OFFHAND) : maidEquipmentInventory.getStackInSlot(1); }
+    public int getBaubleCapacity() { int level = favorabilityManager.getLevel(); return level < 2 ? 10 : level == 2 ? 20 : 30; }
+    public static boolean isBauble(ItemStack stack) { return stack != null && (stack.getItem() instanceof ItemMaidBauble || stack.getItem() == ModItems.WIRELESS_IO); }
     public InventoryBasic getMaidBaubleInventory() { return maidBaubleInventory; }
     public InventoryBasic getMaidEquipmentInventory() { return maidEquipmentInventory; }
     public InventoryBasic getMaidHideInventory() { return maidHideInventory; }
@@ -690,6 +696,9 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     public void recordBoardWin(String game){if("GomokuWin".equals(game))gomokuWins++;favorabilityManager.apply(game,"GomokuWin".equals(game)?8:4,"GomokuWin".equals(game)?12000:18000);Entity owner=getOwner();if(owner instanceof EntityPlayer){((EntityPlayer)owner).triggerAchievement(ModAchievements.BOARD_WIN);if(getFavorability()>=384)((EntityPlayer)owner).triggerAchievement(ModAchievements.DEVOTED);}}
 
     private void syncEquipmentSlots() {
+        ItemStack offhand = maidEquipmentInventory.getStackInSlot(1);
+        if (!ItemStack.areItemStacksEqual(offhand, dataWatcher.getWatchableObjectItemStack(WATCHER_OFFHAND)))
+            dataWatcher.updateObject(WATCHER_OFFHAND, offhand == null ? null : offhand.copy());
         // Write only the vanilla mirror here. Calling our compatibility
         // override would feed the mirror back into the authoritative maid
         // inventory and makes third-party disarm handlers re-entrant.
@@ -718,7 +727,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     @Override
     public void setCurrentItemOrArmor(int vanillaSlot, ItemStack stack) {
         super.setCurrentItemOrArmor(vanillaSlot, stack);
-        if (maidEquipmentInventory == null || worldObj == null || worldObj.isRemote) return;
+        if (maidEquipmentInventory == null || worldObj == null) return;
         int maidSlot = vanillaSlot == 0 ? 0 : vanillaSlot >= 1 && vanillaSlot <= 4 ? vanillaSlot + 1 : -1;
         if (maidSlot >= 0 && maidEquipmentInventory.getStackInSlot(maidSlot) != stack) {
             maidEquipmentInventory.setInventorySlotContents(maidSlot, stack);
@@ -726,6 +735,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         }
     }
     public int getBackpackCapacity() {
+        String backpackType = getBackpackType();
         if ("maid_backpack_small".equals(backpackType)) return 12;
         if ("maid_backpack_middle".equals(backpackType)) return 24;
         if ("maid_backpack_big".equals(backpackType)) return 36;
@@ -1026,29 +1036,86 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     }
 
     private void updateHungerAndHealing() {
-        if (ticksExisted % 1200 == 0 && !isSitting()) {
-            setHunger(getHunger() - 1);
+        // Same natural regeneration rate as SRC randomRestoreHealth.
+        if (getHealth() < getMaxHealth() && rand.nextFloat() < 0.0025F) heal(1);
+        // SRC has no periodic starvation damage. Work meals are throttled by
+        // favorability rather than an artificial survival hunger timer.
+        if (!isTamed() || isMaidSleeping() || !isPeriodicTick(50)
+                || !favorabilityManager.canApply("WorkMeal")) return;
+        for (int hand = 0; hand < 2; hand++) if (eatWorkMeal(maidEquipmentInventory, hand)) return;
+        for (int slot = 0; slot < getBackpackCapacity(); slot++) if (eatWorkMeal(maidInventory, slot)) return;
+    }
+
+    private boolean isSafeMeal(ItemStack stack) {
+        if (stack == null || !(stack.getItem() instanceof ItemFood)) return false;
+        return stack.getItem() != Items.poisonous_potato && stack.getItem() != Items.rotten_flesh
+                && stack.getItem() != Items.spider_eye
+                && !(stack.getItem() == Items.fish && stack.getItemDamage() == 3);
+    }
+
+    private boolean eatWorkMeal(InventoryBasic inventory, int slot) {
+        ItemStack stack = inventory.getStackInSlot(slot);
+        if (!isSafeMeal(stack)) return false;
+        ItemFood food = (ItemFood)stack.getItem();
+        ItemStack used = stack.copy(); used.stackSize = 1;
+        int nutrition = food.func_150905_g(used);
+        float total = nutrition + nutrition * food.func_150906_h(used) * 2;
+        // ItemFood in 1.7 accepts players only. Keep its callback and remainder
+        // without applying food effects to the real owner or spawning an actor.
+        net.minecraftforge.common.util.FakePlayer actor = new net.minecraftforge.common.util.FakePlayer(
+                (net.minecraft.world.WorldServer)worldObj, new com.mojang.authlib.GameProfile(getUniqueID(), "[TLM Meal]"));
+        actor.setPosition(posX, posY, posZ);
+        actor.inventory.setInventorySlotContents(0, used);
+        ItemStack remainder = food.onEaten(used, worldObj, actor);
+        for (Object effect : actor.getActivePotionEffects())
+            addPotionEffect(new net.minecraft.potion.PotionEffect((net.minecraft.potion.PotionEffect)effect));
+        inventory.decrStackSize(slot, 1);
+        if (remainder != null && remainder.stackSize > 0) {
+            ItemStack left = addToMaidInventory(remainder);
+            if (left != null) entityDropItem(left, 0);
         }
-        if (getHunger() <= 0 && ticksExisted % 80 == 0) {
-            attackEntityFrom(net.minecraft.util.DamageSource.starve, 1.0F);
-        } else if (getHunger() >= 60 && getHealth() < getMaxHealth() && ticksExisted % 200 == 0) {
-            heal(1.0F);
-            setHunger(getHunger() - 1);
-        }
+        setHunger(getHunger() + nutrition * 2);
+        favorabilityManager.apply("WorkMeal", rand.nextInt(100) < total ? 0 : 1, 3600);
+        worldObj.playSoundAtEntity(this, "random.eat", 0.5F, 1);
+        return true;
     }
 
     private void tickHomeBehaviors() {
+        boolean rest = isHomeMode() && !isSitting() && getCurrentActivity() == MaidActivity.REST;
+        if (ridingEntity instanceof EntitySit && "bed".equals(((EntitySit)ridingEntity).getJoyType()) && !rest) {
+            Entity seat = ridingEntity; mountEntity(null); seat.setDead();
+        }
+        setMaidFlag(FLAG_SLEEPING, rest && ridingEntity instanceof EntitySit && "bed".equals(((EntitySit)ridingEntity).getJoyType()));
+        if (isSitting()) { setMaidFlag(FLAG_BEGGING, false); return; }
         Entity owner=getOwner();ItemStack temptation=owner instanceof EntityPlayer?((EntityPlayer)owner).getCurrentEquippedItem():null;
         boolean begging=owner!=null&&getDistanceSqToEntity(owner)<36&&temptation!=null&&(temptation.getItem()==Items.cake||temptation.getItem() instanceof ItemFood);
         setMaidFlag(FLAG_BEGGING,begging);if(begging){getLookHelper().setLookPositionWithEntity(owner,20,20);if(getDistanceSqToEntity(owner)>4)getNavigator().tryMoveToEntityLiving(owner,.6D);}
-        if(getCurrentActivity()==MaidActivity.REST){setMaidFlag(FLAG_SLEEPING,true);if(!isRiding()&&isPeriodicTick(20))seekBedAndRest();if(isPeriodicTick(200)&&getHealth()<getMaxHealth())heal(1);return;}else setMaidFlag(FLAG_SLEEPING,false);
+        if (rest) { if (!isRiding() && isPeriodicTick(20)) seekBedAndRest(); return; }
+        if (!isHomeMode()) return;
         if(getCurrentActivity()!=MaidActivity.IDLE||begging||isRiding())return;
         if(getHunger()<80&&isPeriodicTick(100)&&eatNearbyHomeMeal())return;
         if(isPeriodicTick(200))seekJoyBlock();
     }
-    @SuppressWarnings("unchecked") private boolean eatNearbyHomeMeal(){for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof TileEntityInventory)||distanceToTile(tile)>64)continue;TileEntityInventory inv=(TileEntityInventory)tile;for(int slot=0;slot<inv.getSizeInventory();slot++){ItemStack stack=inv.getStackInSlot(slot);if(stack!=null&&stack.getItem() instanceof ItemFood){if(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat&&!isRiding())((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat)inv).seatMaid(this);int food=((ItemFood)stack.getItem()).func_150905_g(stack);inv.decrStackSize(slot,1);setHunger(getHunger()+food*2);heal(Math.max(1,food*.5F));favorabilityManager.apply(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?"OnHomeMeal":"HomeMeal",1,inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?24000:1200);playMaidVoice("maid.mode.feed");return true;}}}return false;}
+    @SuppressWarnings("unchecked") private boolean eatNearbyHomeMeal(){for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof TileEntityInventory)||distanceToTile(tile)>64)continue;TileEntityInventory inv=(TileEntityInventory)tile;for(int slot=0;slot<inv.getSizeInventory();slot++){ItemStack stack=inv.getStackInSlot(slot);if(isSafeMeal(stack)){if(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat&&!isRiding())((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat)inv).seatMaid(this);int food=((ItemFood)stack.getItem()).func_150905_g(stack);inv.decrStackSize(slot,1);setHunger(getHunger()+food*2);heal(Math.max(1,food*.5F));favorabilityManager.apply(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?"OnHomeMeal":"HomeMeal",1,inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?24000:1200);playMaidVoice("maid.mode.feed");return true;}}}return false;}
     @SuppressWarnings("unchecked") private void seekJoyBlock(){for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof TileEntityJoy)||distanceToTile(tile)>64||!(worldObj.getBlock(tile.xCoord,tile.yCoord,tile.zCoord) instanceof BlockJoy)||((TileEntityJoy)tile).getSitEntity()!=null)continue;int x=tile.xCoord,y=tile.yCoord,z=tile.zCoord;if(getDistanceSq(x+.5,y+.5,z+.5)>4){getNavigator().tryMoveToXYZ(x+.5,y,z+.5,.6D);return;}BlockJoy joy=(BlockJoy)worldObj.getBlock(x,y,z);EntitySit sit=new EntitySit(worldObj,x+.5,y+joy.getSitYOffset(),z+.5,joy.getJoyType(),x,y,z);sit.rotationYaw=(worldObj.getBlockMetadata(x,y,z)&3)*90.0F+joy.getSitYawOffset();worldObj.spawnEntityInWorld(sit);((TileEntityJoy)tile).setSitEntity(sit);mountEntity(sit);return;}}
-    @SuppressWarnings("unchecked") private void seekBedAndRest(){SchedulePos.Point p=schedulePos.getForActivity(MaidActivity.REST);for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)||Math.abs(tile.xCoord-p.x)>8||Math.abs(tile.yCoord-p.y)>2||Math.abs(tile.zCoord-p.z)>8)continue;int x=tile.xCoord,y=tile.yCoord,z=tile.zCoord;if(getDistanceSq(x+.5,y+.5,z+.5)>4){getNavigator().tryMoveToXYZ(x+.5,y+.5,z+.5,.6D);return;}EntitySit sit=new EntitySit(worldObj,x+.5,y+.8,z+.5,"bed",x,y,z);worldObj.spawnEntityInWorld(sit);mountEntity(sit);return;}getNavigator().tryMoveToXYZ(p.x+.5,p.y,p.z+.5,.6D);}
+    private void seekBedAndRest() {
+        SchedulePos.Point p = schedulePos.getForActivity(MaidActivity.REST);
+        if (schedulePos.getDimension() != dimension) return;
+        for (Object value : worldObj.loadedTileEntityList) {
+            net.minecraft.tileentity.TileEntity tile = (net.minecraft.tileentity.TileEntity)value;
+            if (!(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)
+                    || Math.abs(tile.xCoord-p.x)>8 || Math.abs(tile.yCoord-p.y)>2 || Math.abs(tile.zCoord-p.z)>8) continue;
+            int x=tile.xCoord,y=tile.yCoord,z=tile.zCoord;
+            boolean occupied = false;
+            for (Object entity : worldObj.loadedEntityList) if (entity instanceof EntitySit && !((EntitySit)entity).isDead
+                    && "bed".equals(((EntitySit)entity).getJoyType()) && ((EntitySit)entity).isAssociatedWith(x,y,z)) { occupied=true; break; }
+            if (occupied) continue;
+            if (getDistanceSq(x+.5,y+.5,z+.5)>4) { getNavigator().tryMoveToXYZ(x+.5,y+.5,z+.5,.6D); return; }
+            EntitySit seat=new EntitySit(worldObj,x+.5,y+.8,z+.5,"bed",x,y,z);
+            if (worldObj.spawnEntityInWorld(seat)) { mountEntity(seat); getNavigator().clearPathEntity(); setMaidFlag(FLAG_SLEEPING,true); }
+            return;
+        }
+    }
     private double distanceToTile(net.minecraft.tileentity.TileEntity tile){double dx=tile.xCoord+.5D-posX,dy=tile.yCoord+.5D-posY,dz=tile.zCoord+.5D-posZ;return dx*dx+dy*dy+dz*dz;}
 
     @SuppressWarnings("unchecked")
@@ -1075,15 +1142,10 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     }
 
     private int findBauble(ItemMaidBauble.Type type) {
-        for (int slot = 0; slot < maidBaubleInventory.getSizeInventory(); slot++) {
+        for (int slot = 0; slot < getBaubleCapacity(); slot++) {
             ItemStack stack = maidBaubleInventory.getStackInSlot(slot);
             if (stack != null && stack.getItem() instanceof ItemMaidBauble
                     && ((ItemMaidBauble) stack.getItem()).getType() == type) return 100 + slot;
-        }
-        for (int slot = 0; slot < maidInventory.getSizeInventory(); slot++) {
-            ItemStack stack = maidInventory.getStackInSlot(slot);
-            if (stack != null && stack.getItem() instanceof ItemMaidBauble
-                    && ((ItemMaidBauble) stack.getItem()).getType() == type) return slot;
         }
         return -1;
     }
@@ -1141,7 +1203,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     private void tickFenceGate(){if(hasOpenedGate){openedGateTicks++;double distance=getDistanceSq(openedGateX+.5D,openedGateY+.5D,openedGateZ+.5D);if(openedGateTicks>40||distance>6.25D){net.minecraft.block.Block block=worldObj.getBlock(openedGateX,openedGateY,openedGateZ);if(block instanceof net.minecraft.block.BlockFenceGate){int meta=worldObj.getBlockMetadata(openedGateX,openedGateY,openedGateZ);if((meta&4)!=0){worldObj.setBlockMetadataWithNotify(openedGateX,openedGateY,openedGateZ,meta&~4,3);worldObj.playAuxSFXAtEntity(null,1003,openedGateX,openedGateY,openedGateZ,0);}}hasOpenedGate=false;}}
         if(hasOpenedGate||isSitting())return;double aheadX=posX-Math.sin(Math.toRadians(rotationYaw))*0.8D,aheadZ=posZ+Math.cos(Math.toRadians(rotationYaw))*0.8D;int centerX=(int)Math.floor(aheadX),centerY=(int)Math.floor(boundingBox.minY),centerZ=(int)Math.floor(aheadZ);for(int y=centerY;y<=centerY+1;y++)for(int x=centerX-1;x<=centerX+1;x++)for(int z=centerZ-1;z<=centerZ+1;z++){net.minecraft.block.Block block=worldObj.getBlock(x,y,z);if(!(block instanceof net.minecraft.block.BlockFenceGate))continue;int meta=worldObj.getBlockMetadata(x,y,z);if((meta&4)==0&&getDistanceSq(x+.5D,y+.5D,z+.5D)<3.0D){worldObj.setBlockMetadataWithNotify(x,y,z,meta|4,3);worldObj.playAuxSFXAtEntity(null,1003,x,y,z,0);openedGateX=x;openedGateY=y;openedGateZ=z;openedGateTicks=0;hasOpenedGate=true;return;}}}
 
-    private void tickWirelessIO(){for(int slot=0;slot<maidInventory.getSizeInventory();slot++){ItemStack link=maidInventory.getStackInSlot(slot);if(link==null||link.getItem()!=ModItems.WIRELESS_IO||!link.hasTagCompound()||!link.getTagCompound().hasKey(com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.DATA,10))continue;NBTTagCompound data=link.getTagCompound().getCompoundTag(com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.DATA);if(data.getInteger("DimensionId")!=dimension)continue;int x=data.getInteger("X"),y=data.getInteger("Y"),z=data.getInteger("Z");if(!worldObj.blockExists(x,y,z))continue;net.minecraft.tileentity.TileEntity tile=worldObj.getTileEntity(x,y,z);if(!(tile instanceof net.minecraft.inventory.IInventory))continue;net.minecraft.inventory.IInventory chest=(net.minecraft.inventory.IInventory)tile;if(data.getBoolean("MaidToChest"))transferMaidToChest(chest,data);else transferChestToMaid(chest,data);return;}}
+    private int getWirelessRange(){return getCurrentActivity()==MaidActivity.REST?SchedulePos.SLEEP_RANGE:getCurrentActivity()==MaidActivity.IDLE?SchedulePos.IDLE_RANGE:SchedulePos.WORK_RANGE;}
+    private void tickWirelessIO(){for(int slot=0;slot<getBaubleCapacity();slot++){ItemStack link=maidBaubleInventory.getStackInSlot(slot);if(link==null||link.getItem()!=ModItems.WIRELESS_IO||!link.hasTagCompound()||!link.getTagCompound().hasKey(com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.DATA,10))continue;NBTTagCompound data=link.getTagCompound().getCompoundTag(com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.DATA);if(data.getInteger("DimensionId")!=dimension)continue;int x=data.getInteger("X"),y=data.getInteger("Y"),z=data.getInteger("Z");if(!worldObj.blockExists(x,y,z)||getDistanceSq(x+.5,y+.5,z+.5)>getWirelessRange()*getWirelessRange()||!isPositionWithinRestriction(x+.5,y,z+.5))continue;net.minecraft.tileentity.TileEntity tile=worldObj.getTileEntity(x,y,z);if(!(tile instanceof net.minecraft.inventory.IInventory))continue;net.minecraft.inventory.IInventory chest=(net.minecraft.inventory.IInventory)tile;if(data.getBoolean("MaidToChest"))transferMaidToChest(chest,data);else transferChestToMaid(chest,data);return;}}
     private void transferChestToMaid(net.minecraft.inventory.IInventory chest,NBTTagCompound data){for(int slot=0;slot<chest.getSizeInventory();slot++){ItemStack source=chest.getStackInSlot(slot);if(source==null||!com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.matchesFilter(data,source))continue;ItemStack one=source.copy();one.stackSize=1;if(addToMaidInventory(one)==null){chest.decrStackSize(slot,1);chest.markDirty();}return;}}
     private void transferMaidToChest(net.minecraft.inventory.IInventory chest,NBTTagCompound data){for(int sourceSlot=0;sourceSlot<maidInventory.getSizeInventory();sourceSlot++){ItemStack source=maidInventory.getStackInSlot(sourceSlot);if(source==null||source.getItem()==ModItems.WIRELESS_IO||!com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.matchesFilter(data,source))continue;for(int slot=0;slot<chest.getSizeInventory();slot++){ItemStack target=chest.getStackInSlot(slot);if(target==null&&chest.isItemValidForSlot(slot,source)){ItemStack one=source.copy();one.stackSize=1;chest.setInventorySlotContents(slot,one);takeOneFromSlot(sourceSlot);chest.markDirty();return;}if(target!=null&&target.isItemEqual(source)&&ItemStack.areItemStackTagsEqual(target,source)&&target.stackSize<Math.min(target.getMaxStackSize(),chest.getInventoryStackLimit())){target.stackSize++;takeOneFromSlot(sourceSlot);chest.markDirty();return;}}return;}}
 

@@ -86,8 +86,8 @@ public final class RenderMaid extends RenderLiving {
         EntityMaid maid = (EntityMaid) living;
         LegacyBedrockModel model = mainModel instanceof LegacyBedrockModel ? (LegacyBedrockModel) mainModel : null;
         if (model == null) return;
-        ItemStack held = maid.getMaidEquipmentInventory().getStackInSlot(0);
-        ItemStack offhand = maid.getMaidEquipmentInventory().getStackInSlot(1);
+        ItemStack held = maid.getHeldItem();
+        ItemStack offhand = maid.getOffhandItem();
         if (held != null) renderHandItem(maid, model, false, held);
         if (offhand != null) renderHandItem(maid, model, true, offhand);
         LegacyMaidModelRegistry.Entry entry = LegacyMaidModelRegistry.INSTANCE.getEntry(maid.getModelId());

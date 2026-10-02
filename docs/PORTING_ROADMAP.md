@@ -1,724 +1,456 @@
-# Touhou Little Maid: Forge 1.7.10 port map
+# Карта доведения порта SRC → LEGACY
 
-This file is the source of truth for the port. The untouched Minecraft 1.20
-implementation in `src/main/java` defines expected behaviour. Executable
-Minecraft 1.7.10 code lives in `src/legacy/java`.
+Обновлено: 2026-10-02. Основание: независимый статический аудит от 2026-09-15 и повторная сверка от 2026-10-02, Git `b918a0b`.
 
-Status legend:
+## Состояние и цель
 
-- `[x]` implemented and accepted by the 1.7.10 compiler/build;
-- `[~]` partially implemented or using a temporary compatibility version;
-- `[ ]` not ported yet.
+**LEGACY — частичный порт с подтверждёнными дефектами. Функциональная эквивалентность SRC не достигнута.** Успешная сборка подтверждает совместимость компиляции, но не полноту переноса.
 
-## 0. Build and runtime foundation
+Цель: восстановить наблюдаемое поведение `src/main` в Forge 1.7.10 (`src/legacy`): игровые условия, действия, расход ресурсов, сохранение, синхронизацию, интерфейсы и расширения. Простого устранения 34 дефектов недостаточно: остаются упрощённые и отсутствующие механики.
 
-- [x] ForgeGradle/Forge `1.7.10-10.13.4.1614` build.
-- [x] Java 8 source target and reobfuscated production JAR.
-- [x] Separate `src/legacy/java` source tree; 1.20 sources remain the reference.
-- [x] `@Mod` entry point, lifecycle events and `mcmod.info`.
-- [x] common/client proxies and GUI-handler hook.
-- [x] SimpleNetworkWrapper channel foundation.
-- [x] dedicated-server discovery and pre/post-init smoke test.
-- [x] client launch smoke test reaches an integrated world with all renderers loaded;
-  repeatable in-world game-test world is pending.
-- [x] modern sound categories/rabbit references are converted and nested modern
-  pack metadata is filtered from the production JAR.
+Этот документ заменяет прежние карту, release audit, regression matrix и отдельный отчёт аудита. Подробные доказательства и сценарии перенесены ниже. Markdown в ресурсах мода не относится к документации портирования.
 
-## 1. EntityMaid core
+## Повторная общая сверка — 2026-10-02
 
-- [x] 1.7.10 `EntityTameable` implementation and entity registration.
-- [x] base size, health, movement speed and vanilla navigation.
-- [x] cake taming, owner assignment and FakePlayer rejection.
-- [x] owner interaction, Shift-click sitting and feeding/healing.
-- [x] synchronized hunger, favorability, XP, schedule, activity and flags.
-- [x] 36-slot maid inventory with stacking and overflow handling.
-- [x] item and XP-orb pickup.
-- [x] NBT persistence using stable modern key names.
-- [x] hunger drain, starvation and passive healing.
-- [x] damage/invulnerability, ten bauble protections, extra life and mute effects.
-- [x] armor, main/off hand and hidden/task inventory separation, persistent NBT
-  and dedicated GUI tabs; profession lookup prioritizes task slots.
-- [x] favorability levels/cooldowns use modern thresholds and NBT history, with
-  health/attack scaling and meal/death/joy/game events.
-- [x] death/tombstone and automatic rolling NBT backups work: tombstones protect
-  the 36-slot inventory and Maid Film, `/tlmmaid backup list|restore <UUID>`
-  restores the latest healthy snapshot, and shrine/altar resurrection works;
-  the latest healthy snapshot, with cross-dimension UUID duplicate protection.
-- [x] cross-dimension following and collision/liquid-safe teleport fallback.
-- [x] riding, vanilla leash, maid-bed sleep, chair and invisible sit mounts work;
-  broom uses the native single-passenger 1.7 vehicle contract because this engine
-  has no passenger list capable of representing the modern two-seat layout.
-- [x] configurable per-owner maid count limit across loaded dimensions.
+**Вывод не изменился: порт функционально неполон, известные дефекты не исправлены.** Сравнение SHA-256 всех Java-файлов с сохранённым снимком установило: SRC — 1488, LEGACY — 198; изменённых, добавленных и удалённых Java-файлов нет. Это подтверждает актуальность прежней базы аудита, но не означает новую построчную проверку всех файлов.
 
-## 2. Schedule, home area and AI framework
+Повторно прочитаны ключевые пути алтаря/gohei, кровати, фермерства, рюкзаков, контейнера/рендера рук, миграции NBT, Film/UUID, honey, очередей и сборки. Сопоставлены исходные пути создания алтаря, посадки, конфигурации и удаления кровати. Дополнительно найден дефект №29; всего документировано 29 дефектов (14 P1, 15 P2).
 
-- [x] `DAY`, `NIGHT`, `ALL` schedules.
-- [x] `WORK`, `IDLE`, `REST` activity switching.
-- [x] separate work/idle/sleep positions and radii.
-- [x] NBT-compatible `MaidSchedulePos` storage.
-- [x] home-area navigation and target restriction.
-- [x] conditional owner-follow, melee and ranged AI tasks.
-- [x] extensible string-ID task registry.
-- [x] safe teleport after excessive owner-follow navigation distance.
-- [x] panic, swimming, drowning protection, wooden-door handling, collision
-  climbing and self-opened fence-gate closing work.
-- [x] joy seating, begging, home meals and rest/maid-bed behaviours.
-- [x] task-specific per-maid NBT data map with stable `MaidTaskData` key.
-- [x] public `IMaidTask`/`TaskManager.register` extension API works; KubeJS has
-  no 1.7 runtime, so Java registration plus MineTweaker/OreDictionary form the
-  native 1.7 extension surface.
+- `gradlew.bat --offline build`: успешно, reobf выполнена; `test NO-SOURCE`.
+- `gradlew.bat --offline compileJava --rerun-tasks`: первая попытка скомпилировала код, но завершилась ошибкой освобождения fileHashes cache. Повторный запуск завершился успешно, все три задачи выполнены. Кэш вручную не удалялся. Предупреждения deprecated/unchecked остаются.
+- Повторная инспекция ZIP: production `0.1.0-port.jar` содержит 13 классов движков, `0.1.0-port-dev.jar` — 0. Ошибка упаковки №24 сохраняется.
+- Новые игровые испытания не запускались. Dedicated, два клиента, визуальная правильность, поведение под нагрузкой и фактическая миграция сохранений не подтверждены этой сверкой.
+- Изменена только карта; игровой код не исправлялся. Приоритет — сохранность данных и базовый survival-цикл, затем полный перенос поведения подсистем.
 
-## 3. Maid professions
+## Исправления предметных ресурсов и локализации — 2026-10-02
 
-- [x] `idle` including cold-biome/snow-block snowball play with the owner or
-  another maid belonging to the same owner.
-- [x] `attack` (melee hostile targeting and owner defence).
-- [x] `ranged_attack` (bow, arrows, enchantments and durability).
-- [x] `farm` (wheat, carrots, potatoes and nether wart).
-- [x] `sugar_cane`.
-- [x] `melon` (melon and pumpkin).
-- [x] `cocoa`.
-- [x] `grass`.
-- [x] `snow`.
-- [x] `crossbow_attack` via a native 1.7 compatibility crossbow and arrows.
-- [x] `danmaku_attack` with gohei selection, aimed projectiles, durability,
-  colors/types, gravity, owner safety and enchantment-driven fan/effects.
-- [x] `trident_attack` via a durable 1.7 compatibility trident projectile.
-- [x] `honey`: tends nearby flowers, produces the native honey fallback and
-  selects Forestry/Gendustry OreDictionary/registry honey when those mods exist.
-- [x] `feed` owner (food and milk; complex modern food effects remain limited by 1.7.10 data).
-- [x] `feed_animal`.
-- [x] `shears`.
-- [x] `milk`.
-- [x] `torch`.
-- [x] `fishing` (water search, synchronized custom bobber, bite timing, rendered
-  line, rod enchantments/durability and Forge `FishingHooks` loot integration,
-  including fish/junk/treasure registered by other 1.7 mods; the rod is equipped
-  in the visible main hand and remains the authoritative durability source).
-- [x] `extinguishing` (durable extinguisher and short-lived cloud agent remove
-  entity/block fire, render particles and damage fire-immune monsters; task use
-  equips it in the main hand, melee extra damage uses the offhand as in source).
-- [x] `board_games`: persistent gomoku with victory/draw checks and opponent AI,
-  plus chess and xiangqi using original rules/search engines; owned maid seating,
-  win records/favorability and Board State copy/restore work; dedicated renderers
-  and TESR state rendering work; the modern multi-block table is represented by
-  a rotatable one-block multi-cuboid ISBRH form, with configurable owner access.
-- [~] EXTRAS `miner`: registered as the 22nd selectable profession. Its bounded
-  loaded-chunk scanner recognizes vanilla and metadata-aware OreDictionary ores,
-  respects home bounds and Forge break/harvest cancellation, equips compatible
-  pickaxes, preserves Fortune/Silk Touch/drops/NBT and provides a guarded ore-only
-  3x3 hammer plane. IC2/GC/GT5/GT6/TConstruct packaged adapters and runtime
-  acceptance remain in the EXTRAS section.
+После повторной сверки внесены изменения в игровой код и ресурсы. Утверждение выше о неизменности Java относится к состоянию **до этого исправления**; старый SHA-256 снимок сохранён как историческая база.
 
-## 4. Registries and gameplay content
+- Smart Slab INIT использует исходную иконку `smart_slab_has_maid`; ссылки на отсутствующий `smart_slab_init.png` больше нет.
+- Подключён клиентский `LegacyItemRenderer`: 11 предметов мебели получают исходные иконки вместо приближённых блоков в инвентаре/руках/дропе. Для picnic_mat используется иконка picnic_basket как соответствие предмету размещения.
+- Для камеры, огнетушителя, двух gohei, маяка и шкафа с едой подключены шесть исходных JSON-моделей вне инвентаря: геометрия, UV, вращения граней/элементов и display transforms. В инвентаре используются исходные плоские иконки. Иконки подключены через item atlas, включая анимации keyboard/scarecrow/camera из `.mcmeta`. При перезагрузке ресурсов модели перечитываются; при ошибке загрузки остаётся иконка и запись в журнале.
+- Арбалет, трезубец и бутылочка мёда получили соответствующие vanilla-иконки вместо лука, железного меча и бутылки зелья. Использованы неизменённые ресурсы локального Minecraft 1.21.10; происхождение и SHA-256 записаны в `ITEM_TEXTURE_SOURCES.json`. Это изменение внешнего вида, а не перенос механик оружия.
+- В 13 `.lang` добавлены доступные исходные переводы под ключами 1.7.10: `item.*.name`, `tile.*.name`, названия профессий и расписаний. В ru_RU заполнены недостающие названия предметов, исправлены опечатки и терминология. Сообщения предметов переведены на ключи с русскими и английскими значениями, параметры сохранены. Для остальных языков новые сообщения используют стандартный английский fallback.
+- GUI профессий/расписания теперь использует переводы, обрезая надпись по ширине в пикселях, а не по числу символов.
 
-- [x] maid entity is registered with stable tracking/update settings.
-- [x] entity registry includes maid, Power Point, danmaku, hostile fairy,
-  fishing hook, extinguishing agent, chair, sit mount, broom and cake box;
-  tombstone; all modern entity types now have a registered 1.7 counterpart,
-  while final Bedrock rendering/advanced behaviour is tracked separately below.
-- [x] gameplay item registry includes combat/utility items, Power/gohei,
-  vehicles, Film/photo/Smart Slab, 10 baubles, seven backpacks, Chisel,
-  Kappa Compass, Wireless IO, fox scrolls, spawn eggs, compatibility weapons,
-  Board State and maintenance tools; internal advancement-only icons are omitted.
-- [x] all mod items and blocks are grouped in a dedicated 1.7 creative tab.
-- [x] all 16 gameplay block IDs are registered with item forms and translations;
-  all 15 modern tile-entity types have persistent 1.7 counterparts, plus a tiny
-  loaded-world TileEntity index replacing the modern scarecrow POI. Scarecrow,
-  furniture/sit blocks, shrine, picnic mat, snack cabinet, maid bed, statue,
-  garage kit, beacon, model switcher, three boards and altar are functional.
-- [x] configurable-ID enchantments, attributes, sounds and the 32×48 Wine Fox
-  hanging painting entity/item/renderer work.
-- [x] altar has six persistent offering slots, absorbs Power, covers all 43
-  modern altar definitions (item/block outputs, boxed maid, lightning and Film
-  resurrection); the one-block 1.7 geometry replaces the template shell.
-- [x] core shaped/shapeless and altar recipes use 1.7 GameRegistry ingredients;
-  unavailable bamboo/barrel/shield inputs map to reeds/chest/iron equivalents.
-- [x] fairy spawning, scarecrow exclusion, Power Point death reward and chest
-  loot injection work. The modern source contains no world generator; its NBT
-  templates belong to altar formation/game-test and are handled by 1.7 adapters.
-- [x] core taming, board-win, devotion and resurrection advancements are
-  converted to a native 1.7.10 achievement page.
-- [x] core spawn/maid/gameplay/AI/TTS settings use Forge 1.7 `Configuration`.
+Проверка: `gradlew.bat --offline build` (компиляция и reobf), `python docs/verify_item_resources.py` (ресурсы production JAR, 53 предмета, 11 sprite renderers, 6 JSON-моделей / 336 граней, 13 языков, обязательные ключи en_US/ru_RU и параметры сообщений). Скрипт не проверяет пиксельную правильность изображения на экране.
 
-## 5. Inventory, GUI and networking
+Остаётся визуальная приёмка: все новые модели в руках игрока/горничной, дроп, масштаб/UV/освещение и resource reload. Динамические предметные модели стула и фигурки с NBT не восстановлены этим изменением; их нельзя считать эквивалентными SRC. Полнота анимационного движка моделей горничных также не затронута. Этап 7 остаётся частичным.
 
-- [x] SimpleNetworkWrapper channel exists.
-- [x] stable packet discriminator table covers task/config/GUI C2S and chat/TTS
-  S2C; all handlers validate bounds/ownership and rendezvous with the proper
-  client or server tick thread before touching game state.
-- [x] maid inventory container and initial screen.
-- [~] task/schedule/config controls and main/bauble/equipment/task tabs work;
-  the 256x256 source layout, non-uniform backpack rows, hand/armor slots and
-  source-textured Baubles open/close control are ported; remaining advanced
-  configuration pages are pending.
-- [x] dynamic-capacity backpack, 30-slot bauble, equipment and hidden/task
-  inventory containers with server-validated tab switching.
-- [~] beacon and model switcher have server-authoritative interaction/status;
-  board games are playable on-block; Wireless IO binds accessible inventories
-  and performs unloaded-chunk-safe bidirectional transfer with a nine-entry
-  item/NBT filter captured by sneak-use. Both dedicated editors are ported;
-  their remaining multiplayer and effect acceptance passes are tracked below.
-- [x] every implemented C2S packet validates bounds, ownership and distance;
-  all S2C handlers rendezvous with the client thread before changing client state.
-- [x] model, sound-pack and task synchronization via DataWatcher; server-validated
-  request/response packets synchronize configured work/idle/sleep home points.
-- [x] AI chat/TTS packets, bounded history, bubbles and bounded WAV playback.
+## Проверка EntityMaid и MaidUI — 2026-10-02
 
-## 6. Client rendering and resources
+Под MaidUI здесь понимаются `AbstractGuiMaid`, четыре экрана `GuiMaid*`, их контейнеры и пакеты; отдельного класса MaidUI в LEGACY нет. Проверены серверный tick и взаимодействие, NBT, DataWatcher, обе руки, открытие/переключение вкладок, ограничения слотов, расписание и отображение показателей. Использован также предоставленный пользователем [снимок текущего UI](C:/Users/brawl/Desktop/mods/TLMM/docs/images/maid-ui-2026-10-02.png).
 
-- [x] default maid and fairy use Bedrock geometry instead of `ModelBiped`.
-- [x] Bedrock 1.10/1.12 geometry parser adapted to 1.7 `ModelRenderer`:
-  hierarchy, source-equivalent Z-Y-X pivot/rotation signs, cube pivot/rotation,
-  UV, mirror and inflate work. Reimu was verified both in the GUI preview and
-  standing in the integrated world after correcting inverted X/Y bone angles.
-- [x] both classic `[u,v]` and newer per-face Bedrock UV object schemas are
-  rendered; the dedicated 1.7 quad renderer now matches the source vertex order,
-  face-axis swaps, negative UV sizes and 0/90/180/270 `uv_rotation`, preventing
-  furniture/bed/model faces from being mirrored or silently discarded.
-- [~] dependency-free animation controller maps common Bedrock/Gecko bone names
-  for walk, look, sit, sleep, blink, beg, swing, float, wing, hair, skirt and
-  tail states using the source amplitudes/phases; arbitrary modern
-  JavaScript/Molang expressions are intentionally not evaluated.
-- [x] built-in and resource-pack maid models are discovered from `maid_model.json`;
-  model/texture selection, extra-texture variant IDs, entity/item scale metadata,
-  `show_backpack`/`show_custom_head`, reload invalidation and geometry cache work.
-- [~] maid layers render main/offhand, all four armor slots and backpack;
-  baubles remain logical effects as in the source. Authored arm and backpack
-  positioning bones are honored; models without them use the source fallback.
-  Generic armor item icons are deliberately not rendered as detached cuboids.
-- [x] other renderers include billboards/fishing line/no-op helpers, Bedrock
-  fairy/broom/box/tombstone and dynamic bundled chair geometry with fallback;
-  boards/altar use state TESRs.
-- [x] source-default vanilla visuals are restored behind legacy config switches:
-  slime/magma cube use the bundled Reimu/Marisa Yukkuri Bedrock models and XP
-  orbs use the original `point_item` atlas without changing vanilla entity logic.
-- [x] bundled Peco sound namespace, positional maid voices and Mute bauble support.
-- [x] timed AI text/error chat bubbles, activity particles, server-synchronized
-  coloured home-area wireframes and F3 maid/task diagnostics render client-side.
-- [x] modern non-empty locale JSON files are converted to UTF-8 1.7 `.lang`;
-  full English/Russian sets are merged with legacy-only item/achievement keys.
-- [x] modern blockstate/model forms are replaced by a multi-cuboid
-  `ISimpleBlockRenderingHandler` for inventory/fallback geometry; altar, game
-  boards, maid bed, keyboard, bookshelf, computer, shrine, picnic mat and snack
-  cabinet use their original Bedrock geometry/textures through reload-safe TESRs.
-- [x] statue and Garage Kit now have registered TESRs: both render the original
-  `statue_base` Bedrock geometry and a static maid preview reconstructed from
-  synchronized photo NBT instead of the previous placeholder cuboids.
-- [x] mutable tile state uses `S35PacketUpdateTileEntity`; altar inventory/power,
-  board pieces, bed colour, beacon, statue, garage and model-switcher changes
-  invalidate the block and reach the client renderer immediately.
-- [x] maid spawn regression fixed: `entityInit()` now registers non-null constant
-  model/sound defaults because the 1.7 base `Entity` constructor invokes it before
-  subclass fields are initialized.
-- [x] Model Switcher geometry regression fixed: the dynamic model assignment now
-  overrides the actual 1.7 `RenderLiving.doRender(EntityLiving, ...)` dispatch
-  point. Previously the `EntityLivingBase` overload was bypassed, so only the
-  texture changed while every maid retained Reimu geometry.
+**EntityMaid и UI нельзя принять как корректный перенос.** Повторно подтверждены №06–09, 14–15, 18: переносной верстак, вместимость рюкзака на клиенте, профессия после загрузки, руки при tracking, питание/сон и WirelessIO. Найдены ещё пять проблем №30–34. Снимок подтверждает визуальные дефекты №34; он не доказывает сетевые ошибки или прохождение игровых сценариев.
 
-## 7. Data-driven systems
+Положительные результаты: контейнеры проверяют живую сущность, владельца и дистанцию <8 блоков; действия UI исполняются через серверную очередь; direct-select проверяет ID профессии и длину строки; фильтры типов брони и соответствие шести слотов экипировки согласованы. Это не полный adversarial-тест сети. Вложения/состояние слотов при изменении условий и экран настройки профессии остаются неполным переносом.
 
-- [x] core modern tags are replaced by OreDictionary/configurable registries.
-- [x] datapack reload listeners are replaced by Forge config, model/sound,
-  prompt and kaomoji resource loaders.
-- [x] original chess/xiangqi engines are reused; board NBT and Board State
-  copy/restore items replace the modern JSON-state workflow.
-- [x] reloadable UTF-8 kaomoji loader with begging bubble integration.
-- [x] classpath/resource-pack LLM system prompt resource and safe action schema.
-- [x] Power Point global chest loot is replaced by Forge `ChestGenHooks`.
-- [x] recipes use GameRegistry/altar registries; modern structure NBT is limited
-  to the adapted altar shell and game-test fixture, not world generation.
+Эта проверка не меняла игровой код и не запускала клиент/сервер. Новая сборка ради чтения кода не выполнялась. Приоритет исправления: единое синхронизированное состояние EntityMaid → согласованные ограничения контейнеров → обновление кнопок → исходная компоновка статусов и подсказки. Визуальная перекраска сама по себе не исправит ошибки поведения.
 
-## 8. AI chat, LLM and TTS
+## Исправления EntityMaid / MaidUI и контроль предыдущих изменений — 2026-10-02
 
-- [x] server-only endpoint/model/API-key configuration.
-- [x] bounded asynchronous Java 8 `HttpURLConnection` client.
-- [x] bounded per-maid conversation memory persisted in NBT.
-- [x] allow-listed `[sit]`, `[follow]` and `[task:*]` maid-action bridge.
-- [x] bounded WAV TTS download, client cache, decoder registration and positional playback.
-- [x] owner/distance checks, rate limits, timeouts, size limits and voice fallback.
-- [x] HTTP/TTS workers operate on immutable maid-state snapshots and marshal
-  results back to the server tick thread, rejecting stale player/entity targets.
+Этот раздел описывает изменения **после** приведённого выше аудита. Нумерованные находки ниже сохранены как историческое описание причин; они не означают, что каждое исходное проявление всё ещё воспроизводится.
 
-## 9. Required platform adaptations
+- №06: переносной верстак получил отдельный ContainerMaidCrafting с проверкой владельца, дистанции и установленного рюкзака; рецепты и остатки обрабатывает ContainerWorkbench 1.7.10, привязка к блоку верстака устранена.
+- №07–09: вместимость читает синхронизированный тип рюкзака; загрузка NBT обновляет watcher профессии; основная рука использует vanilla equipment sync, вторая — ItemStack DataWatcher. Рендер читает синхронизированные руки.
+- №13: добавлены aliases MaidIsHome/MaidIsPickup при миграции, без перезаписи существующих LEGACY-значений. Остальные схемы миграции требуют отдельной проверки.
+- №14, частично: убран искусственный периодический урон от голода, добавлена самостоятельная еда из рук/доступного рюкзака с WorkMeal cooldown и callback ItemFood через изолированного FakePlayer. Восстановлена естественная регенерация SRC (1 HP с вероятностью 0.0025 за tick). Опасная vanilla-еда исключена по стандартному списку SRC с учётом fish:3 в 1.7.10. Настраиваемые списки, полная анимация еды и домашний цикл питания ещё не эквивалентны SRC.
+- №15, частично: сон требует режима дома и REST, не начинается при сидении; проверяются измерение и занятость кровати, убран маршрут к нулевой точке при отсутствии кровати. Полный цикл домашнего поведения ещё требует сверки.
+- №18, частично: WirelessIO работает из доступных bauble-слотов, с проверкой измерения, загруженного блока и радиуса текущей активности. Исходная настройка переноса по слотам не восстановлена.
+- №30, 33: единый лимит аксессуаров 10/20/30 для прямого надевания, контейнера и эффектов. В контейнере всегда 30 слотов, поэтому ID слотов игрока не меняются с уровнем. Старые предметы из заблокированных ячеек можно забрать, их эффекты отключены.
+- №31–32: шкала привязанности показывает прогресс внутри текущего уровня; расписание, состояния H/P/S и доступность рюкзака обновляются по синхронизированному состоянию.
+- №34: убраны перекрывающиеся подписи статусов; добавлены исходные иконки, компактные значения и подсказки. Название горничной перенесено в подсказку портрета; inventory, экипировка, профессия и элементы управления локализованы. Длинные названия профессий доступны в подсказках.
 
-- [x] Curios→maid bauble inventory, modern backpacks/guns/models→native legacy equivalents.
-- [x] the 1.20 source contains no Thaumcraft or GregTech-specific behavior to
-  port; on 1.7.10 both are supported through dependency-free OreDictionary and
-  `IInventory` item transport.
-- [x] OreDictionary names expose core items to legacy recipes and automation.
-- [x] modern-only integrations degrade to native inventories/tasks without crashes.
+Проверки: полная `gradlew.bat --offline build --rerun-tasks` прошла, включая reobf. Проверка production JAR подтвердила 53 предмета, 11 sprite renderers, 6 моделей / 336 граней, 13 языков без ошибок. `git diff --check -- src docs` — без ошибок. Добавлена игровая команда `/tlmmaid uiverify` для порогов привязанности, стабильности слотов, ограничений аксессуаров, watcher профессии, вместимости и переносного верстака; **сама команда пока не запускалась**.
 
-## EXTRAS. Optional compatibility with other mods
+Проверка подозрения на перезапись IDE: SHA-256 222 исходных/ресурсных файлов и build.gradle до и после полной сборки совпали. Это исключает перезапись проверенных файлов в этом интервале, но не устанавливает причину возможных изменений ранее. Файлы .idea, .gradle, журналы и сохранения пользователя не откатывались. Предыдущие исправления предметных ресурсов и локализации присутствуют и проходят проверку JAR.
 
-`EXTRAS` is the dedicated backlog for third-party integrations. These entries
-do not block the base 1.7.10 port unless an enabled integration crashes or
-corrupts the game. Every entry must remain optional and avoid hard class links.
+Игровая визуальная приёмка, dedicated server и два клиента пока не выполнены. Скриншот в карте относится к версии до этих исправлений. Ни EntityMaid, ни UI, ни порт целиком ещё не отмечены как принятые.
 
-- [x] InfernalMobs / Compact InfernalMobs: external disarm mutations use the
-  vanilla equipment bridge and no longer leave a stale maid hand stack; the
-  implementation and remaining packaged stress test are documented below.
-- [x] Forestry/Gendustry: honey production has a dependency-free optional output bridge.
-- [x] Optional integrations are detected through `Loader` without hard class references.
-- [~] NEI displays standard GameRegistry recipes automatically; a custom altar
-  recipe handler remains an optional enhancement.
-- [~] MineTweaker/CraftTweaker can address exposed OreDictionary entries; custom
-  scripting actions for altar recipes remain an optional enhancement.
+## Правила статусов
 
-### EXTRAS compatibility contract
+- **Частично** — исполняемый код есть, полнота поведения не подтверждена или есть известные пропуски.
+- **Дефект** — статически подтверждено ошибочное поведение; номер ведёт к подробному разбору ниже.
+- **Замена** — исходная механика заменена другой; требуется полноценная реализация либо явно описанная адаптация к 1.7.10.
+- **Не проверено** — недостаточно доказательств; наличие класса или регистрации не меняет статус.
+- **Принято** — сопоставлены условия и результаты SRC/LEGACY, выполнены соответствующие игровые сценарии, записаны версия и результаты. Сейчас ни одна подсистема целиком этот статус не получила.
 
-- [ ] Add a version-aware adapter registry keyed by mod ID. Loading the maid mod
-  without any supported mod installed must never resolve its API classes.
-- [ ] Run item actions on the logical server with the Maid's position, look vector
-  and owner attribution. Respect Forge cancellation/protection events and never
-  bypass claims merely by using a fake-player execution context.
-- [ ] Keep the authoritative equipped `ItemStack` through every callback and copy
-  back all metadata, durability, charge, modifiers, tool XP and custom NBT. No
-  action may duplicate ammunition, drops, energy or replacement/container items.
-- [ ] Recognize items by optional API/class/registry identity and capability, not
-  localized display names. Each adapter gets per-feature allow/deny configuration.
-- [ ] Acceptance matrix for every adapter: mod absent, supported versions present,
-  empty charge/ammunition, save/reload, death/resurrection, disarm, task switch,
-  combat end, chunk unload and dedicated multiplayer server.
+Для каждого закрываемого пункта записывать: исходный класс/метод → реализация LEGACY → отличия 1.7.10 → сценарий → фактический результат → commit/сборка и среда. Непереносимые механики перечислять отдельно с обоснованием; заглушки не считать завершённым переносом. Проценты по количеству файлов не использовать.
 
-### EXTRAS profession: `miner`
+## Порядок работ и условия завершения
 
-The modern source has no miner among its 21 base professions. This is a new
-optional 1.7.10 profession whose ore discovery must be mod-aware from the start.
+Все пункты ниже открыты. Приоритет обозначает порядок, а не утверждение о готовности остальных функций. Параллельно с каждым этапом проверять его GUI, пакеты и NBT.
 
-- [~] Added a central ore classifier for the exact block plus metadata. Resolution
-  order: explicit config deny list, explicit config allow list, installed-mod
-  adapter, OreDictionary name, then the vanilla ore table; installed-mod adapter
-  dispatch remains to be added.
-- [x] Treat registered OreDictionary ore variants as targets, including normal,
-  small, poor, dense, Nether, End and host-rock variants where exposed by the
-  installed mod. Prefix/name rules must be configurable rather than accepting
-  every block whose display name merely contains "ore".
-- [ ] Add tested classifiers for IC2/IC2 Experimental, Galacticraft (`GC`), GT5
-  and GT6 meta-ores. GT5 and GT6 must decode their own block metadata/material
-  identity through separate optional adapters rather than sharing assumptions.
-- [x] Other mods work automatically when they register block+metadata stacks in
-  OreDictionary; packs can extend or correct detection through registry-ID plus
-  metadata allow/deny configuration without recompiling the mod.
-- [x] Never classify machines, cables, storage blocks, decorative blocks or an
-  arbitrary TileEntity as ore. A TileEntity block is denied by default unless a
-  loaded adapter or explicit configuration marks that exact state harvestable.
-- [~] Ore searches now stay inside loaded chunks, Maid home/work radius and a
-  configurable bounded per-tick scan budget with a persistent rotating cursor;
-  classification caching and adapter-generation invalidation remain.
-- [~] Before selecting or breaking a target, require the active tool's native
-  harvest class/level and energy/durability check. Fire Forge break/harvest/drop
-  events with Maid/owner attribution and preserve Silk Touch, Fortune, native
-  mod drops, tool NBT and the normal `onBlockDestroyed` callback. Baseline Forge
-  tools work; explicit electric/replacement-item adapters remain.
-- [~] Hammer 3x3 selection uses the struck face and the tool adapter's native
-  area rules. Every secondary block is independently checked for permissions,
-  loaded state, ore classification and harvestability. The safe generic plane is
-  implemented; native TConstruct/GT orientation and energy rules remain.
-- [ ] Acceptance worlds must cover vanilla, IC2, Galacticraft, GT5, GT6 and at
-  least one OreDictionary-only third-party ore across Overworld/Nether/End or
-  mod dimensions, including mixed metadata blocks and protected claims.
+| Этап | Что восстановить | Основание / зависимости | Условие завершения |
+|---|---|---|---|
+| 0. Основа проверки | Зафиксировать контракты SRC для каждой функции, состав production/dev JAR, запуск клиента и dedicated server, расширяемый self-test | Дефекты 24–25; основа всех этапов | Оба JAR содержат движки; оба режима запускаются; дополнительная профессия не ломает запуск; сохранены журналы |
+| 1. Целостность данных | Размещение кровати, списание алтаря, импорт предметов/экипировки, Film и восстановление, защита от повторного UUID | Дефекты 03–04, 12–13, 28–29; до тестов на ценных сохранениях | Нет дюпа/тихой потери; полный NBT сохраняется; неподдерживаемые данные явно сохраняются/отклоняются; restore проверен при выгруженном оригинале |
+| 2. Базовая горничная | Единственный источник состояния инвентарей, синхронизация рук/профессии/рюкзака; питание, отдых, home/follow, ownership | Дефекты 07–09, 14–15; после 1 | Два клиента видят одинаковое состояние до открытия GUI и после reload; еда, сон, следование работают по условиям SRC |
+| 3. Выживание и алтарь | Gohei и создание структуры, отдельный контейнер, рецепты/остатки/Power, достижимость предметов | Дефекты 01–04, 20; после 1–2 | Новый survival-мир проходит цепочку получения горничной и рюкзаков без команд; корректны неудачный крафт и полные стаки |
+| 4. Рюкзаки и аксессуары | Печь с отдельным состоянием, переносной верстак, бак с входом/выходом, WirelessIO, эффекты и прочность baubles, события favorability | Дефекты 05–07, 18–19, 27; после 1–2 | Баланс предметов/жидкости/топлива сохраняется; смена/снятие/reload не теряют содержимое; ограничения доступа/дистанции действуют |
+| 5. Профессии и AI поведения | Полные циклы каждой профессии, единый путь разрешений изменения мира, инструменты/тара, цели/прерывания; боевые механики | Дефекты 10–11, 16–17; замены honey/crossbow/trident; после 2 и 4 | По сценарию на каждую исходную профессию; работа на пустом участке; отменённое действие ничего не расходует; корректные stop/resume и reload |
+| 6. Блоки, сущности и игры | Полный lifecycle мебели/структур/мест, beacon/model switcher/scarecrow, транспорт/спавн, правила игр | Дефекты 03, 26, 29; после 1–2 | Размещение→использование→сохранение→разрушение воспроизводит SRC; занятость мест и результаты партий корректны; нет двойного дропа |
+| 7. Клиент, модели и звук | Все необходимые экраны/настройки, анимации и pack selection; sound pack, Mute и TTS | Дефекты 21–22; частичный движок анимации; после серверных контрактов | Клиент отображает реальное серверное состояние; проверены модели с различными контроллерами; выбор звука и Mute слышимы в двух клиентах |
+| 8. AI чат и фоновые службы | Сопоставить providers/tools/config/history SRC, реализовать отсутствующие возможности, лимиты очередей и жизненный цикл | Дефект 23; текущий упрощённый чат | Таблица возможностей без скрытых заглушек; медленный/ошибающийся сервис не накапливает работу без границ; выход из мира очищает работу |
+| 9. API, интеграции и контент | Контракты расширений, реальные compat handlers, loot/achievements, модовые растения/животные/инструменты, локализация | Дефект 25; зависит от контрактов 4–8 | Каждый заявленный API/compat подтверждён вызывающим кодом и тестом; рецепты/loot исполняются в 1.7; miner проверен отдельно как добавка |
+| 10. Приёмка сборки | Полная матрица ниже, миграция, два клиента, dedicated, длительная работа и ресурсы распространения | После 0–9 | Записаны результаты и оставшиеся ограничения; нет открытых блокирующих потерь/дюпов; состав артефактов и разрешения на ресурсы проверены |
 
-### Tinkers' Construct (`TConstruct`)
+### Обязательное раскрытие объёма этапов
 
-- [ ] Allow appropriate TConstruct tools/weapons to select existing professions
-  and remain the active visible item during combat and normal work.
-- [ ] Rapier melee must execute the mod's native hit/modifier callbacks so armor
-  penetration and other effects work, while tool XP, modifiers, durability and
-  NBT advance exactly as for a player-attributed hit.
-- [~] Added the `miner` work mode, generic pickaxe recognition and protected
-  OreDictionary mining. Hammer work must
-  use the native 3x3 orientation/harvest rules, permissions, drops and tool XP;
-  the current source has no miner among its 21 tasks, so `miner` is an EXTRAS
-  profession extension rather than a missing base-port profession.
-- [ ] TConstruct bow, longbow and crossbow must qualify for ranged professions,
-  find and consume their correct arrows/bolts, and inherit native draw time,
-  aiming, projectile, damage, modifiers and weapon/ammunition NBT updates.
+- **Профессии:** idle, attack, ranged, danmaku, crossbow, trident, farm, sugar cane, melon/pumpkin, cocoa, grass, snow, feed owner, feed animal, shear, milk, torch, fishing, extinguishing, honey, board games. Miner — отдельная добавка LEGACY. Для каждой сравнить поиск цели, навигацию, условия работы, инвентари, расход/остатки, отмену и результат.
+- **Состояние горничной:** tame/owner, лимиты владельца, сидение, бой при низком здоровье, DAY/NIGHT/ALL, home, кровать, еда, pickup, favorability, смерть/воскрешение, фото/slab и backups. Проверять также выгрузку чанка и смену измерения.
+- **Блоки и сущности:** altar, bed, shrine, picnic, snack cabinet, statue/garage kit/chisel, beacon, model switcher, scarecrow, keyboard/bookshelf/computer, три настольные игры, broom/chair/box/PowerPoint/fairy. Для каждого — ориентация, структура, NBT, drop, доступ и tracking.
+- **Специфика версий:** отсутствие в vanilla 1.7.10 пчёл, современных снарядов, data components/современных NBT и animation runtime требует явного решения по каждой механике. Подмена стрелой или производством продукта по таймеру не подтверждает эквивалентность.
+- **Интеграции:** перечислить каждый реально поддерживаемый мод и функцию. Обнаружение установленного мода или наличие OreDictionary не подтверждает поддержку его инструментов и API.
 
-### IndustrialCraft 2 / IC2 Experimental and GraviSuite (`IC2`, `GraviSuite`)
+## Приёмочные проверки
 
-- [ ] Permit supported electric tools as profession/active items and debit energy
-  through the installed IC2 electric-item API; a discharged tool must stop acting
-  rather than falling back to free vanilla durability behavior.
-- [ ] Apply supported IC2 and GraviSuite armor effects, energy use and damage
-  mitigation to Maid without assuming the wearer is an `EntityPlayer`.
-- [ ] Nano Saber automatically activates immediately before a valid melee attack,
-  applies its native powered damage/effects, and deactivates when combat ends,
-  the target is lost, Maid is sitting/low-health, the task changes, the chunk
-  unloads, or charge is exhausted. Its actual stack NBT must retain the state.
+| Проверка | Минимальный сценарий | Необходимое свидетельство |
+|---|---|---|
+| Сборка и запуск | Java 8; принудительная компиляция; production/dev; клиент и dedicated | Команды, версия, журнал успешного запуска без отсутствующих классов; test NO-SOURCE не считать тестами |
+| Выживание | Новый мир, gohei→алтарь→горничная→специальные рюкзаки | Достижимая цепочка рецептов без `/give`, корректные расходы и остатки |
+| Сохранность | Полные стаки, заполненные инвентари, неудачное размещение, смена рюкзака, смерть/restore | Количество и полный NBT до/после; нет лишних предметов и пропавших данных |
+| Миграция | Реальные SRC NBT: руки/броня, зачарования/прочность, все рюкзаки, home/pickup, задачи/игры/history | Ожидаемые значения после импорта и повторного сохранения; явный результат для неизвестных ID |
+| Мультиплеер | Dedicated + владелец и второй игрок; чужие/дальние/некорректные запросы | Одинаковые руки/слоты/задачи после tracking/reload; запрещённые действия отклонены без изменения состояния |
+| Профессии | Каждый режим: штатный цикл, нет ресурсов, полный выход, sitting, расписание, reload | Наблюдаемые результаты SRC и LEGACY, расход/тара/прочность; отмена действия защитой мира |
+| Мир и мебель | Все структуры/сиденья, занятой объект, ломание каждой части, redstone, измерения | Нет осиротевших половин/пассажиров, двойного дропа и утраты NBT |
+| Игры | Победа/поражение/ничья, копирование состояния, reload, несколько одновременных партий | Верные результаты/награды и измеренное время серверного тика |
+| Клиент | Выбор моделей/звуков, анимации, resource reload, GUI, локализации, Mute/TTS | Скриншоты/наблюдения по выбранным сценариям и список неподдерживаемых контроллеров |
+| Нагрузка | 20 активных горничных на 10 минут; медленный AI и backup; выход/вход в мир | Характеристики машины, средний tick и выбросы, память/размеры очередей; целевой средний tick <50 мс, отсутствие неограниченного роста |
 
-### GregTech 5 / GregTech 6 (`gregtech`, version-selected adapters)
+## Имеющиеся доказательства и ограничения
 
-- [ ] Implement separate GT5 and GT6 MetaTool adapters; do not assume their
-  similarly named classes, metadata layouts or electric APIs are compatible.
-- [~] Dependency-free GT MetaTool introspection plus standard
-  `craftingToolPickaxe/MiningDrill/JackHammer/HardHammer` OreDictionary support
-  recognizes 9 of 10 mining-tool stacks exposed by the installed GT6 Unofficial
-  6.15.07 runtime. GT5 and the remaining GT6 stack still require packaged tests.
-- [~] Recognize MetaTool pickaxes, hammers, swords and other relevant tools for
-  profession assignment and active use. Preserve native material stats, attack,
-  harvest/AoE behavior, electric charge, durability and all MetaTool NBT. Miner
-  pickaxe/drill/hammer assignment and native block-destroy/harvest callbacks are
-  active; combat tools and explicit energy verification remain.
-- [ ] Apply multi-block mining only when the installed MetaTool itself authorizes
-  it and the active work mode permits it; retain Forge harvest/drop events and
-  protection checks for every affected block.
+На 2026-09-15 выполнены `gradlew.bat --offline build` и `gradlew.bat --offline compileJava --rerun-tasks`: успешно. Автотесты отсутствуют (`test NO-SOURCE`). Игровой клиент, dedicated server и postInit self-test этим аудитом не запускались. Ранее записанные в старой карте игровые успехи не перенесены в статусы «Принято» без повторной проверки конкретных сценариев.
 
-### Draconic Evolution (`DraconicEvolution`)
+В production JAR найдены 13 классов игровых движков, в dev JAR — 0. Проверенные ссылки model/texture и прямые OGG разрешаются, дубли ZIP-путей не найдены; это не визуальная проверка. Инвентаризация: `PORT_AUDIT_INVENTORY.json`; воспроизведение: `audit_inventory.py`. Снимок содержит 1488 Java-файлов SRC и 198 LEGACY; это не мера готовности.
 
-- [ ] Permit Draconic weapons/tools as active profession items and dispatch their
-  native attack/use/energy behavior with the real Maid-held stack.
-- [ ] Inherit supported Draconic armor protection, shield and energy effects.
-  A compatible capacitor anywhere in Maid's accessible inventory must recharge
-  equipped armor and active weapons using native transfer limits and priorities.
-- [ ] Explicitly define and test player-only abilities such as flight/area mining;
-  unsupported abilities remain disabled instead of being approximated unsafely.
+### Комплектация выпуска
 
-### Avaritia (`Avaritia`)
+До распространения проверить лицензии кода и каждого набора ресурсов и добавить необходимые уведомления. Предыдущая проверка не обнаружила корневых LICENSE/COPYING/NOTICE; это открытый пункт комплектации, а не доказательство отсутствия разрешений.
 
-- [ ] Permit Infinity armor and inherit supported protection/effects without
-  granting abilities that require an actual player implementation.
-- [ ] Hard-block World Breaker mining mode and Avaritia axe activation for Maid,
-  including indirect task selection and right-click use; keep items intact and
-  report the rejection instead of deleting or damaging them.
-- [ ] Permit the Avaritia bow for the ranged profession and use its native draw,
-  ammunition/projectile, damage and NBT logic without synthesizing free shots.
+Сохранённые сведения об авторах из manifest: основной pack — Succinum, Pajinyi, Hoishi, ZeniCrow, Paulzzh, Tian_mi, CrystalizedSun, FumoLover; old pack — Hoishi, Succinum, Pajinyi, ZeniCrow, FumoLover; Seihou — TartaricAcid и CrystalizedSun; Minecraft 15th — CrystalizedSun; Gecko/credits — авторы отдельных manifest. Peco — CV из `littlemaid_peco/maid_sound.json` и Tamemaru, ссылка manifest: https://booth.pm/ja/items/1903163. Эти сведения не заменяют проверку лицензий.
 
-### Ender IO (`EnderIO`)
+## Подробная база карты
 
-- [ ] Permit The Ender and other explicitly supported weapons as active melee
-  items, preserving native hit effects, energy, durability, upgrades and NBT.
-- [ ] Inherit supported Dark Steel armor upgrades/effects and their energy or
-  durability costs; player-only movement abilities require an explicit safe hook.
+Ниже сохранены 34 дефекта (14 P1, 20 P2), подтверждённые кодом; визуальная часть №34 также подтверждена снимком пользователя, ссылки на реализации и матрица остальных подсистем. Номера соответствуют этапам выше. Сценарии описаны, но не объявлены выполненными. Изменение документации не исправляет игровой код.
 
-### Extra Utilities (`ExtraUtilities`)
+## Подтверждённые дефекты
 
-- [ ] Blacklist Angel Ring from Maid equipment, bauble activation and passive
-  inventory use to prevent flight/state bugs. Reject it without consuming it.
-- [ ] Permit Healing Axe melee/use and inherit its native healing, hunger/effect,
-  cooldown and durability behavior using the authoritative held stack.
+P1 — блокирует важную функцию либо приводит к потере/дублированию данных. P2 — функциональная ошибка или существенное расхождение поведения.
 
-### EXTRAS implementation order
+### 01. [P1] Алтарь нельзя получить обычным путём выживания
 
-1. [~] Common mining item-action/NBT bridge is implemented; armor-tick, ranged
-   weapon and explicit energy bridges remain.
-2. [ ] TConstruct melee/ranged support, then the separate `miner` extension.
-3. [ ] IC2/IC2 Experimental/GraviSuite and GT5/GT6 energy/MetaTool adapters.
-4. [ ] Draconic Evolution and Avaritia high-impact item/armor safety adapters.
-5. [ ] Ender IO and Extra Utilities adapters.
-6. [ ] Packaged-mod dedicated-server regression matrix for every supported version.
+SRC создаёт мультиблок через `ItemHakureiGohei.useOn/checkAndBuild`. LEGACY регистрирует отдельный `ALTAR`, но его gohei — пустой подкласс Item с настройками имени/прочности; формирования алтаря нет. Среди регистраций обычных/алтарных рецептов и лута нет выдачи ALTAR. Перенос JSON в JAR этого не исправляет: Forge 1.7.10 не исполняет современные рецепты.
 
-## 10. Verification and release
+Проверка: новый survival-мир, построить исходную структуру и применить gohei; альтернативного рецепта блока также нет. Нужен исполняемый путь создания алтаря в 1.7.
 
-- [x] `gradlew build` produces a reobfuscated JAR.
-- [x] dedicated server reaches mod loading without registry crashes.
-- [ ] accept EULA manually and run a persistent dedicated test world.
-- [x] integrated client/server completed the Forge mod handshake and joined a world.
-- [ ] save/reload and chunk unload/reload tests for every entity state.
-- [ ] one scenario test per profession.
-- [~] packet handlers, tombstone/backups, Smart Slab, Model Switcher and broom
-  enforce owner UUID (plus distance where applicable); a two-client adversarial
-  runtime pass remains.
-- [~] `/tlmmaid profile|profile reset` reports loaded maid count and server-side
-  maid-tick sample/average/max microseconds; a representative multi-maid world
-  still needs to be run on the target server hardware.
-- [x] structural migration fixture covers modern entity/owner UUID arrays,
-  ItemStackHandler compounds, string registry IDs, namespaced backpack IDs and
-  deprecated backpack levels.
-- [x] `/tlmmaid verify` exercises the real world-bound maid constructor, all 21
-  source professions plus the EXTRAS `miner` task, and a separate NBT
-  write/read/re-tick round-trip without leaving a test entity in the world.
-- [~] production JAR contents and credits are audited in `RELEASE_AUDIT.md`;
-  redistribution waits for the project owner to supply/confirm missing licenses.
+Код: [legacy/ItemHakureiGohei.java:8](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/item/ItemHakureiGohei.java:8), [legacy/LegacyRecipes.java:12](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/init/LegacyRecipes.java:12), [legacy/ModBlocks.java:65](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/init/ModBlocks.java:65), [main/ItemHakureiGohei.java:71](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/item/ItemHakureiGohei.java:71).
 
-## Full-port gate (audit updated 2026-08-13)
+### 02. [P1] GUI алтаря не содержит ни одного слота приношений
 
-Current verdict: **feature-complete at the static/core level, not yet a fully
-accepted port**. `EXTRAS` enhancements are excluded from this verdict.
+`TileEntityAltar` имеет 6 слотов, `BlockAltar` вызывает `displayGUIChest(altar)`. В локальных исходниках Minecraft 1.7.10 `ContainerChest` вычисляет `numRows = size / 9`; для 6 это 0. В GUI создаются только слоты игрока. Наполнить алтарь вручную через этот экран нельзя.
 
-- [x] Registry parity: every modern gameplay entity has a 1.7 counterpart;
-  all 16 gameplay blocks and all 15 modern TileEntity roles are represented.
-- [x] Item parity was reconciled by function rather than raw registry count:
-  modern block-item duplicates and advancement-only icons are intentionally not
-  copied as standalone 1.7 items; achievements replace the icons, while native
-  crossbow, trident, honey, cake-box and Wine Fox painting items preserve
-  mechanics unavailable in vanilla 1.7.10.
-- [x] Profession parity: all 21 source tasks plus EXTRAS `miner` are registered
-  and pass constructor, switch, tick and NBT round-trip verification.
-- [x] Resource integrity: 234 selectable model entries, 231 referenced geometry
-  files, translations, sounds and required board-piece bones pass startup checks.
-- [x] Build/runtime smoke gate: Java 8 compilation, reobfuscated JAR, Forge
-  initialization self-test, integrated handshake and world join pass.
-- [ ] Persistent-world gate: dedicated-world EULA run plus save/reload and chunk
-  unload/reload for every entity and stateful block.
-- [ ] Behaviour/UI gate: one real-world scenario for each of the 21 professions,
-  the remaining advanced maid configuration pages, and the five Shrine Lamp
-  effects/transfer/autocollect acceptance pass.
-- [ ] Rendering gate: capture the held-item/state matrix across representative
-  custom maid models and all seven backpack types; prove bundled animation
-  expressions fit the legacy controller or port the remaining required subset.
-- [ ] Multiplayer/security gate: two-client ownership, distance and malformed
-  packet tests, including Model Switcher/redstone and third-party disarm stress.
-- [ ] Release gate: profile a representative multi-maid world and resolve the
-  missing redistribution licences/notices listed in `RELEASE_AUDIT.md`.
+Нужен собственный шестислотовый контейнер и соответствующий клиентский экран. Проверка: открыть даже выданный через creative алтарь.
 
-## Current execution order
+Код: [legacy/TileEntityAltar.java:16](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/tileentity/TileEntityAltar.java:16), [legacy/BlockAltar.java:26](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockAltar.java:26).
 
-1. [x] Forge foundation and build/runtime smoke tests.
-2. [x] EntityMaid core, inventory, persistence, basic GUI and packets.
-3. [x] Vanilla-compatible professions and entity registry coverage.
-4. [x] Bedrock parser and built-in entity rendering pipeline.
-5. [x] All block IDs and all 15 tile-entity persistence/function foundations.
-6. [x] Advanced gameplay: maid board games, tombstone/backups/resurrection,
-   equipment, backpacks, baubles, altar recipes and data loaders.
-7. [x] OpenAI-compatible Java 8 LLM/TTS, command, memory, cooldowns,
-   safe maid-action bridge, chat bubbles and bounded positional audio.
-8. [x] NBT migration, packet-thread safety and lifecycle self-tests.
-9. [x] Dependency-free compatibility surface, legacy block/TESR rendering,
-   home/config networking, Wireless IO filtering and client diagnostics.
-10. [~] Remaining base-port gate: exhaustive persistent-world, profession,
-    rendering and multiplayer tests plus redistribution licence confirmation
-    listed in section 10 and `Full-port gate`; `EXTRAS` is tracked separately.
+### 03. [P1] Неудачная установка кровати возвращает весь исходный стак
 
-## Active verification pass (updated 2026-08-13)
+Когда для второй половины нет места, `onBlockPlacedBy` добавляет в инвентарь `stack.copy()` без ограничения количества. Стандартный `ItemBlock` 1.7 после callback списывает только одну единицу. При нескольких кроватях и свободных слотах игрок получает лишние предметы. При одном предмете фактический возврат также зависит от вместимости инвентаря.
 
-- [x] Main maid container visually checked in the Java 8 integrated client:
-  equipment, backpack and player slots align with the source textures.
-- [x] Removed overlapping vanilla Baubles buttons/text and restored the original
-  54x63 two-state texture control.
-- [x] Corrected legacy armor inventory mapping (helmet/chest/legs/boots) in both
-  the main and equipment containers.
-- [x] Corrected Bedrock bone and rotated-cube X/Y signs against the original
-  `AbstractBedrockEntityModel`; standing Reimu geometry no longer separates.
-- [x] Audited the state matrix against `MaidBaseAnimation`: corrected limb
-  phases/amplitudes, sitting arms/legs/skirt, blink/sleep visibility, attack,
-  hair/wing/tail motion and sleeping backpack suppression.
-- [x] Removed the incorrect generic armor-as-item layer and added authored
-  hand/backpack positioning-bone support plus source fallback transforms.
-- [ ] Complete visual runtime captures for every matrix combination with held
-  items and all seven backpacks across representative custom models.
-- [ ] Run save/reload and one real-world scenario for each of the 21 professions.
-- [x] First profession audit fixed concrete scenario defects: double-plant grass
-  harvesting no longer leaves/duplicates halves; honey respects home bounds and
-  negative coordinates; idle snowball probability is 1/32 rather than 31/32;
-  extinguishing now respects sitting/home state and actively locates block fire.
-- [x] Source animation audit found no dedicated extinguisher spray/arm animation:
-  source uses the normal main-hand swing and only toggles authored
-  `extinguishingHidden`/`extinguishingShow` bones. Both behaviours are now ported.
-- [x] Restored source-style automatic visible tool handling for extinguisher,
-  fishing rod and shears; selecting idle returns the main-hand work tool to the
-  maid inventory. Fishing and shearing durability now follows the equipped item.
-- [x] Fishing visual/lifecycle regression fixed from runtime capture: the maid
-  now sits facing the water, holds the source `hold_mainhand:fishing` pose for
-  the complete hook lifetime, repeatedly casts after catches, uses the correct
-  vanilla bobber-atlas UV and source-aligned hand-to-bobber line anchor.
-- [x] Restored source task-equipment contracts for melee, bow, danmaku,
-  crossbow and trident modes. Attacks now require the visible main-hand weapon;
-  task switches pull it from the task/backpack inventory without deleting the
-  previous hand item.
-- [x] Combat parity pass restores weapon-aware melee targeting, visibility/home/
-  team/tamed filters, bow damage scaling and range accuracy, source-sized
-  danmaku fans (1/3/8/32), friendly-fire rejection and repeated ranged swings.
-- [x] Household parity pass restores Silk Touch melon harvesting, shovel-aware
-  snow drops, harmful-effect-only milk use, milk output-space checks, population
-  culling in animal feeding and the missing 21st `board_games` profession with
-  autonomous board discovery, navigation and seating.
-- [x] Replaced integer-rounded vanilla `ModelBox` conversion with float-sized
-  Bedrock cubes and source-compatible unfolded UV order. Fractional/flat ribbons,
-  sleeves, hair, wings and rotated decorative parts retain authored dimensions;
-  the same fix applies to maid/fairy/entity and TESR Bedrock models. Rendering
-  now also matches source `entityCutoutNoCull`, so zero-depth decorations remain
-  visible from both sides.
-- [x] Added Gecko-style `Head`/`LeftArm`/`RightArm`/leg aliases to base, sitting,
-  swing and fishing state handling, plus `LeftHandLocator`/`RightHandLocator`
-  attachment support so modern custom models no longer freeze or place held
-  items at the shoulder.
-- [x] Audited all 234 manifest entries and 231 referenced geometry files: no
-  missing model/texture references or orphaned parents were found. Exact float
-  cubes cover 13,801 rotated and 17,435 fractional-size cubes; all 22,171
-  per-face definitions now use source-compatible UV construction.
-- [x] Duplicate bone names are preserved as distinct hierarchy nodes rather than
-  overwritten (`kurokoma_saki` hair and `kisume` roots); parent resolution follows
-  the most recent preceding definition while animation lookup remains deterministic.
-- [x] Restored the model-controlled head-block layer and suppression switches for
-  the two bundled models which explicitly forbid backpack/head accessories.
-- [x] Power Point right-click now launches a distinct gravity projectile; impact
-  emits the potion effect and splits 30-88 Power into source denominations rather
-  than spawning one immediately collectible 100-value point. Sprite thresholds
-  now match `EntityPowerPoint.getPowerValue` from the 1.20 source.
-- [x] Bauble capacity again follows source favorability gates (10/20/30 slots):
-  locked rows are absent server-side, excluded from shift-click and rendered with
-  the original dark overlay/lock icon instead of exposing all slots immediately.
-- [x] Replaced temporary previous/next profession buttons with the original-style
-  12-row paged task panel and a bounded, owner/distance-validated direct-select packet.
-- [~] Model Switcher item binding and item-to-tile `StorageData` round-trip are restored;
-  breaking/replacing retains bound maid UUID, owner, index and model/name/yaw list.
-  The six-row editor supports model selection, add/delete/apply, name editing,
-  cardinal rotation and capture; server packets validate block, owner, distance,
-  indices and payload bounds. Left/right-only redstone connections cycle in
-  opposite directions on the rising edge. Both native 1.7 flat NBT and the 1.20
-  `ForgeData` + `int[4]` UUID + direction format migrate safely, with malformed
-  lists capped at 128 entries. The block now uses the source full-cube geometry
-  and its three face textures. Clean reobfuscated build and static migration/edit
-  checks pass. Integrated-world testing confirms item binding, GUI opening,
-  adding 24 entries, selecting multiple indices, client/server synchronization,
-  clean save/exit and owner persistence after reload. Explicit left/right
-  redstone, break/place NBT and two-client adversarial passes remain.
-- [ ] Run the two-client ownership/distance/packet adversarial pass.
-- [x] Sequential TileEntity audit: Altar now clears client ghost stacks on empty
-  S35 updates, clamps malformed Power NBT and never deletes points at capacity.
-- [x] Sequential TileEntity audit: Statue restores the complete source
-  1x1x1/1x2x1/2x4x2/3x6x3 clay-volume selection, core/non-core storage,
-  bounded NBT migration and whole-structure clay restoration on break. Garage
-  Kit placement orientation and modern string-facing migration are corrected.
-- [x] Sequential TileEntity audit: Maid Beacon uses the source-configurable
-  range/storage/cost (including the original `/900` tick scaling), normalizes
-  invalid NBT and preserves its state in the dropped/replaced ItemBlock.
-  Model Switcher storage, binding, S35 sync and model/name/yaw application were
-  rechecked after the dynamic RenderMaid dispatch repair.
-- [x] Sequential TileEntity audit: Gomoku/CChess/WChess now migrate and sanitize
-  board state safely, update draw/checkmate status after both player and maid
-  moves, preserve chess irreversible-move counters and migrate modern Joy
-  `SitId`. The legacy TESR now indexes both chess engines through their mailbox
-  coordinates, so all pieces render on their actual squares.
-- [x] Sequential TileEntity audit: Keyboard/Bookshelf/Computer share safe Joy
-  UUID migration and now use the source seat heights, yaw offsets, favorability
-  type names and collision heights for both players and autonomous maids.
-  Shrine accepts the modern `ForgeData/StorageItem` ItemStackHandler format in
-  addition to native 1.7 inventory NBT.
-- [x] Sequential TileEntity audit: Picnic Mat restores `CenterPos`, four
-  persistent seats, source seat transforms, `OnHomeMeal`, nested ItemStackHandler
-  migration and seat cleanup while retaining the practical one-block 1.7 GUI
-  adaptation. Maid Bed now converts reversed 1.7 dye damage to stable modern
-  DyeColor IDs, restricts dyes to the seven source colours, preserves the colour
-  in item NBT and removes its sleeping seat on break. Snack Cabinet inventory,
-  comparator, drops and string-ID ItemStack migration are verified.
-- [x] Full 15-TileEntity pass finishes with a clean reobfuscated build and a
-  Java 8 dev-client startup; the expanded registry/resource/NBT self-test passes
-  during Forge initialization.
-- [x] Cake Box spawn parity restored: the legacy item used to construct every
-  passenger with the hard-coded default Reimu model. `EntityMaid.onSpawnWithEgg`
-  now performs the source `finalizeSpawn`-style random selection from all bundled
-  manifest models (including decorated extra textures), and Cake Box creation
-  invokes that hook before spawning/mounting the maid. Box texture remains an
-  independent random cosmetic, matching the source entity.
-- [x] Maid model integrity follow-up: all 234 selectable manifest entries were
-  revalidated against their geometry and PNG resources (no missing files or
-  orphaned parents). The renderer now retains each entry's explicit animation
-  list and restores the source's mutually-exclusive visibility layers for
-  blink/beg/sleep/sitting skirts, equipment and reverse-equipment parts, task
-  variants, low-health parts, backpack state and Hecatia's dimension variants.
-  Previously every bone reset to visible each frame, causing overlapping parts
-  and apparent geometry artifacts on models such as Cyra and Hecatia.
-- [x] Mini-game rendering parity follow-up: Gomoku, western chess and xiangqi
-  now use their original Bedrock piece geometry, textures and selection bones.
-  Their source 2x2/3x3/4x4 board geometry and piece spacing are normalized to
-  the port's single interactive block. Startup validation checks every required
-  piece bone, while engine smoke tests cover legal player moves, AI replies,
-  turn changes, Gomoku victory, terminal rejection and reset.
-- [x] Maid profession UI follow-up: task rows and pager controls were previously
-  swallowed by the generic tab-button ID branch. Only IDs 100-102 are now
-  delegated to tab handling, so all 21 registered professions can be selected;
-  the direct-select packet retains owner, distance, ID and server-thread checks.
-- [x] Board opponent placement follow-up: the one-block adaptation no longer
-  creates its invisible maid seat in the centre/on top of the board. Navigation,
-  manual game start and already-mounted NPCs now use a rotated ground-level
-  position one block outside the board and face back toward the playing field.
-- [x] Board 3x3 interaction restoration: newly placed and unobstructed legacy
-  boards expand into eight stateless invisible hit sections around their single
-  state-owning TileEntity. Board geometry, pieces, render bounds, NPC clearance
-  and ray-hit coordinates scale together to 3x3; clicks are normalized across
-  all nine blocks. Old one-block boards expand automatically when space permits
-  and retain the compact fallback when obstructed. Breaking any section removes
-  the complete structure while dropping only the actual board item.
-- [x] Board 3x3 render/hit correction: enlarged pieces now inherit the board's
-  reflected-X-before-rotation transform and a footprint-scaled surface offset,
-  preventing chess pieces from being mirrored below the tabletop. The click
-  transform is its exact inverse for all four facings, and per-game grid tests
-  cover every western-chess square and every gomoku/xiangqi intersection.
-- [x] InfernalMobs/Compact InfernalMobs disarm compatibility: the maid now
-  exposes its authoritative main-hand stack through the vanilla equipment API
-  and mirrors external `setCurrentItemOrArmor` mutations back into the maid
-  inventory, avoiding a stale-stack server crash. The verification command
-  covers both directions of this bridge; a packaged third-party multiplayer
-  stress pass remains part of the compatibility gate.
-- [x] Scarecrow parity pass: placement creates synchronized two-block halves,
-  preserves all four horizontal facings, removes the pair without double drops,
-  uses the source compound collision shapes and renders all 4 lower plus 22
-  upper JSON elements with their original textures, UVs and rotated cubes. The
-  source radius-48 square exclusion is implemented through a loaded TileEntity
-  index instead of an 84k-block scan per fairy spawn attempt, and the item shows
-  the configured range. Java 8 compilation, clean reobfuscated build, resource/
-  registry self-test pass. A single in-world capture confirms all four facings;
-  survival removal drops exactly one item and creative removal correctly drops
-  none while both halves are removed.
-- [~] Shrine Lamp parity pass: the previous approximate one-block cuboids are
-  replaced by the complete source `maid_beacon_down` (9 elements) and
-  `maid_beacon_up` (15 elements) JSON geometry, including the N/S and W/E roof
-  orientations, two-block lifecycle, source collision/light and legacy
-  metadata-0 world compatibility. State lives in the upper half and survives
-  breaking/placing in both flat 1.7 and nested modern `ForgeData` formats. The
-  restored screen controls all five effects, one-Power deposit/withdrawal and
-  overflow policy; player Power (0-5), excess-to-XP pickup, radius-6 automatic
-  collection, 100-Power capacity, 80-tick effect cycle, `/900` cost and the +3
-  weapon modifier follow source behaviour. Both model orientations and the
-  corrected non-overlapping localized GUI were captured and accepted in-world.
-  Survival drop and re-placement now have in-world confirmation that stored
-  Power is preserved. Effect execution is shared by the normal server tick and
-  `/tlmmaid beaconverify`, which reports the actual Potion ID, affected Maid
-  count, duration/amplifier and measured Power debit; the five effects plus
-  transfer/autocollect remain for the final manual acceptance pass. Destruction
-  lifecycle review found no Maid-to-beacon navigation reference in either the
-  source or port: an already applied effect expires after 100 ticks. Diagnostic
-  status now exposes both the Maid's live path endpoint and remaining durations
-  of all five beacon-compatible effects so a reported post-removal path can be
-  separated from owner-follow, home/schedule and profession navigation.
-- [x] Maid owner binding/GameType audit: ownership is persisted exclusively as
-  the vanilla tameable `OwnerUUID`; Creative/Survival is not part of bind,
-  resolve or interaction checks, and `/gamemode` retains the same server-player
-  identity. `/tlmmaid ownerverify` independently locates a Maid by stored UUID
-  and reports game mode, tame state, resolved owner UUID and object identity,
-  allowing before/after mode-switch verification without relying on GUI access.
-- [x] Melee attack critical fix: the port delegated attacks to
-  `EntityLivingBase.attackEntityAsMob` through the tameable inheritance chain;
-  in Minecraft 1.7.10 that method only records the attacker and always returns
-  false. Maid now performs the complete vanilla `EntityMob` damage transaction:
-  attack attribute and held-item modifiers, living-target enchantment bonus,
-  knockback, Fire Aspect and enchantment callbacks. Runtime status exposes the
-  successful-hit counter, measured last health delta and ticks since the hit.
-- [x] Owner-follow interruption audit: the apparent link to a removed Shrine
-  Lamp was the independent Home Mode point recorded by the Maid GUI's `H`
-  control while the Maid stood beside the lamp. Disabling Home now immediately
-  clears the obsolete navigator path, reports the old home coordinates and
-  resumes owner following. Follow is no longer incorrectly disabled by the
-  DAY/NIGHT schedule's REST period when Home Mode itself is off, matching the
-  source CORE follow behaviour. Status exposes the active schedule home target.
-- [x] Low-health combat safety: every combat selector and both 1.7 melee/ranged
-  AI goals reject combat below 25% maximum health. Existing targets and their
-  navigator path are cleared before the AI tick, while direct melee and ranged
-  entry points provide a final guard. Exactly 25% permits combat again; status
-  exposes `combatAllowed` for deterministic testing.
-- [x] Sound-log audit: all twenty source placeholder events that pointed at the
-  decoder-hostile silent `maid/empty.ogg` now resolve to valid bundled Peco OGG
-  variants, and profession selection dispatches its actual mode event instead
-  of collapsing every non-combat profession to idle. The remaining
-  `minecraft:mob.witch.*` warnings originate from vanilla witches/assets rather
-  than EntityMaid or EntityFairy and are tracked separately from mod sounds.
-- [x] Miner GT6 recognition hotfix: GT6 `PrefixBlock` ores store their material
-  in `PrefixBlockTileEntity` extended metadata, so the generic machine-safety
-  guard previously rejected them. The classifier now permits only the exact
-  optional GT prefix-block contract, obtains its OreDictionary stack through
-  `getItemStackFromBlock`, and still denies unrelated TileEntities. Harvest
-  validation now calls native `MultiItemTool.canHarvestBlock` before the generic
-  Forge harvest-level fallback. The fix compiles and reobfuscates against the
-  installed GT6 Unofficial 6.15.07 environment.
-- [x] Combat-assist trigger fix: the port only polled `owner.getAITarget()`
-  (the entity which hurt the owner) and omitted Minecraft 1.7.10's separate
-  `owner.getLastAttacker()` path (the entity attacked by the owner). Restricted
-  `OwnerHurtTarget` and `OwnerHurtByTarget` goals are now registered for melee,
-  bow, danmaku, crossbow and trident professions. They respect work activity,
-  sitting, the 25% health gate, task range, home bounds, teams and friendly
-  tameable/villager exclusions. Periodic targeting also prioritizes owner-hit,
-  owner-attacked and maid-attacked targets before autonomous hostile scanning;
-  `/tlmmaid verify` exercises owner-hit assignment and `status` exposes both
-  the Maid attack target and the owner's last attacked entity.
+Проверка: взять стак из нескольких кроватей, заблокировать место второй половины и попытаться поставить. Проверку размещения нужно выполнить до установки/списания, либо вернуть ровно один предмет с обработкой остатка.
+
+Код: [legacy/BlockMaidBed.java:53](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockMaidBed.java:53).
+
+### 04. [P1] Крафт алтаря удаляет целиком все стаки ингредиентов
+
+Алтарь допускает стаки до 64; совпадение рецепта проверяется по занятым слотам. После одной выдачи результата вызывается `clear`, обнуляющий все слоты. Например, по 64 ингредиента в каждом слоте превращаются в один результат и полностью исчезают. Сейчас это достижимо через автоматизацию/заполнение NBT; после исправления GUI станет обычным пользовательским сценарием.
+
+Нужно списывать требуемое количество и учитывать контейнеры ингредиентов, либо ограничить слоты одной единицей.
+
+Код: [legacy/BlockAltar.java:54](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockAltar.java:54), [legacy/TileEntityInventory.java:46](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/tileentity/TileEntityInventory.java:46), [legacy/LegacyAltarRecipes.java:80](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/crafting/LegacyAltarRecipes.java:80).
+
+### 05. [P1] Печной рюкзак не переносит механику печи
+
+Раз в 200 тиков выбираются первый плавящийся предмет и первое топливо из общего инвентаря; по одной единице каждого списывается на один результат. Нет времени горения, выделенных input/fuel/output, остатка ведра или опыта. Один уголь плавит один предмет вместо использования своего времени горения. Один и тот же стак брёвен может быть выбран одновременно как input и fuel. Состояние печи из `MaidBackpackData.Items/BurnTime/CookTime` не переносится.
+
+Проверка: 8 руды + 1 уголь; отдельно — только брёвна; отдельно — ведро лавы. SRC реализует полноценный автомат печи в `FurnaceBackpackData`.
+
+Код: [legacy/EntityMaid.java:805](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:805), [main/FurnaceBackpackData.java:88](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/backpack/data/FurnaceBackpackData.java:88).
+
+### 06. [P1] Верстак-рюкзак закрывается проверкой vanilla контейнера
+
+Пакет OPEN_BACKPACK вызывает `displayGUIWorkbench` по координатам горничной. `ContainerWorkbench.canInteractWith` в 1.7.10 требует настоящий `Blocks.crafting_table` в этих координатах. Обычно там воздух, поэтому сервер закрывает экран.
+
+Проверка: надеть crafting_table_backpack и открыть вдали от верстака. Нужен контейнер, проверяющий доступ к горничной.
+
+Код: [legacy/MessageMaidConfig.java:74](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/network/message/MessageMaidConfig.java:74), [main/CraftingTableBackpack.java:28](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/backpack/CraftingTableBackpack.java:28).
+
+### 07. [P1] Клиент считает вместимость рюкзака равной 6
+
+Тип синхронизируется DataWatcher, но `getBackpackCapacity()` читает поле `backpackType`, остающееся `empty` у сетевой клиентской сущности. Только `getBackpackType()` читает watcher. Клиентские `Slot.isItemValid/canTakeStack` используют неправильную вместимость и запрещают работу со слотами 6+ даже при большом рюкзаке на сервере.
+
+Проверка: большой рюкзак, обычный клик и перетаскивание в расширенные слоты, повторить после переподключения. Getter вместимости должен использовать синхронизированный тип.
+
+Код: [legacy/EntityMaid.java:728](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:728), [legacy/ContainerMaid.java:32](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/inventory/container/ContainerMaid.java:32).
+
+### 08. [P2] После загрузки клиент видит профессию idle
+
+`readEntityFromNBT` присваивает `taskId` напрямую, не обновляя `WATCHER_TASK_INDEX`. Клиент читает только индекс из watcher, начально равный idle. Сервер может продолжать работать фермером/рыболовом, а GUI, анимации и диагностика показывают idle. Простое повторное назначение того же задания не обязательно исправит это: `switchTask` возвращается при `oldTask == newTask`.
+
+Проверка: сменить профессию, сохранить/перезагрузить мир или чанк и сравнить работу с GUI.
+
+Код: [legacy/EntityMaid.java:625](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:625), [legacy/EntityMaid.java:954](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:954), [legacy/TaskManager.java:101](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskManager.java:101).
+
+### 09. [P2] Предметы в руках рендерятся из несинхронизированного хранилища
+
+Vanilla S04 обновляет vanilla equipment, но клиентская ветка `setCurrentItemOrArmor` специально не отражает это в `maidEquipmentInventory`. Рендер читает обе руки именно из `maidEquipmentInventory`. Его содержимое приходит через открытый контейнер, но не через обычный entity tracking; отдельного offhand-пакета нет.
+
+Проверка: второй игрок входит в зону видимости вооружённой горничной, не открывая её GUI; затем владелец меняет оружие. Основную руку нужно читать из корректного зеркала, вторую синхронизировать отдельно.
+
+Код: [legacy/RenderMaid.java:89](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/renderer/entity/RenderMaid.java:89), [legacy/EntityMaid.java:719](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:719), [legacy/NetworkHandler.java:19](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/network/NetworkHandler.java:19).
+
+### 10. [P1] Фермер не сажает на пустые грядки
+
+LEGACY ищет исключительно зрелые растения и сбрасывает metadata после сбора. Нет поиска пустой пашни, посадки из семян и режима работы с мотыгой. SRC отдельно выполняет `canPlant/plant` и `MaidFarmPlantTask`, включая пустые посадочные места.
+
+Проверка: пустая увлажнённая пашня + семена у горничной с профессией farm. Нужен перенос посадки, а не только регенерация уже существующего растения.
+
+Код: [legacy/TaskFarm.java:37](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskFarm.java:37), [main/TaskNormalFarm.java:100](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskNormalFarm.java:100), [main/MaidFarmPlantTask.java:52](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/ai/brain/task/MaidFarmPlantTask.java:52).
+
+### 11. [P1] Сбор урожая обходит разрешения на разрушение
+
+`AbstractHarvestTask` и `TaskFarm` напрямую изменяют блоки/metadata и выдают drops. SRC предварительно вызывает `maid.canDestroyBlock`, включающий проверку блока и Forge event. LEGACY не предоставляет эквивалентного отменяемого пути для этих профессий. Обработчики защиты, рассчитанные на события разрушения, не получают возможности остановить операцию. Наличие BreakEvent у miner не исправляет остальные задачи.
+
+Проверка: запретить горничной сбор через обработчик события; убедиться, что блок и дроп остаются неизменными. Для 1.7 нужен единый адаптер разрешённого действия, используемый всеми задачами изменения мира.
+
+Код: [legacy/AbstractHarvestTask.java:29](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/AbstractHarvestTask.java:29), [legacy/TaskFarm.java:67](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskFarm.java:67), [main/EntityMaid.java:2406](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:2406).
+
+### 12. [P1] Миграция предметов из SRC теряет экипировку и свойства
+
+`LegacyNbtMigration` обрабатывает четыре ItemStackHandler-инвентаря, но не `HandItems/ArmorItems`; LEGACY читает собственный `MaidEquipmentInventory`, которого SRC не записывает. Также преобразуется только строковый `id`: нет переноса современной вложенной прочности, зачарований и преобразования flattened vanilla ID в 1.7 item+metadata. Например, `minecraft:oak_planks` не равен реестровому имени 1.7 `minecraft:planks` с metadata 0.
+
+Это не универсальный конвертер сохранений. Если импорт modern NBT поддерживается, нужен явный конвертер каждой структуры и политика для неподдерживаемых предметов, исключающая тихую потерю. Проверять следует на реальном NBT SRC, а не только на вручную созданном apple fixture.
+
+Код: [legacy/LegacyNbtMigration.java:13](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/LegacyNbtMigration.java:13), [legacy/LegacyNbtMigration.java:123](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/LegacyNbtMigration.java:123), [legacy/EntityMaid.java:664](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:664), [main/EntityMaid.java:1361](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1361).
+
+### 13. [P2] Названия флагов NBT не совпадают с SRC
+
+SRC сохраняет `MaidIsPickup` и `MaidIsHome`. LEGACY читает/пишет `MaidPickup` и `MaidHomeMode`, а migration их не переименовывает. Импортированная домашняя горничная теряет home mode, а выключенный подбор включается обратно. Перенос координат `MaidSchedulePos` этого не исправляет.
+
+Код: [main/MaidConfigManager.java:12](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/MaidConfigManager.java:12), [legacy/EntityMaid.java:635](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:635).
+
+### 14. [P1] Самостоятельное питание заменено голоданием
+
+В LEGACY есть периодическое уменьшение hunger и урон `starve`, но нет аналога `MaidWorkMealTask`, который использует пищу из рук/рюкзака. Автоматическое питание LEGACY возможно только в IDLE из соседнего TileEntityInventory. На расписании ALL эта ветка недостижима: горничная может голодать с полным рюкзаком еды. В SRC поле hunger по найденным обращениям сохраняется/читается, но соответствующего legacy-циклу истощения и starvation нет.
+
+Проверка: ALL, низкий hunger, еда в рюкзаке, без ручного кормления. Следует восстановить питание SRC и отдельно решить, нужна ли вообще добавленная механика голода.
+
+Код: [legacy/EntityMaid.java:1028](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1028), [legacy/EntityMaid.java:1040](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1040), [main/MaidWorkMealTask.java:38](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/ai/brain/task/MaidWorkMealTask.java:38).
+
+### 15. [P2] REST принудительно уводит к неинициализированной точке сна
+
+`tickHomeBehaviors` выставляет sleeping=true по одному расписанию и вызывает `seekBedAndRest` без проверки sitting/home mode. Если домашние точки не настроены, sleep point начально (0,0,0); при отсутствии кровати путь строится туда. Это конфликтует со следованием владельцу, а визуальная поза сна включается даже без кровати. SRC начинает настоящий сон только у найденной незанятой кровати после `canBrainMoving`.
+
+Проверка: свежеприручённая горничная без home mode, ночное время; отдельно дать команду сидеть. Поиск кровати и сон должны учитывать доступность перемещения и реальное место сна.
+
+Код: [legacy/EntityMaid.java:1040](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1040), [legacy/EntityMaid.java:1051](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1051), [main/MaidBedTask.java:37](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/ai/brain/task/MaidBedTask.java:37).
+
+### 16. [P2] Кормление владельца не применяет эффекты еды
+
+LEGACY вызывает только `FoodStats.addStats` и удаляет предмет. SRC использует `finishUsingItem`, сохраняя эффекты и возвращаемую тару. Золотое яблоко в порте расходуется без его эффектов; миска супа также не возвращается. При полном hunger и низком здоровье яблоко не используется, хотя в SRC имеет высокий приоритет.
+
+Код: [legacy/TaskFeedOwner.java:27](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskFeedOwner.java:27).addStats), [main/TaskFeedOwner.java:102](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskFeedOwner.java:102).
+
+### 17. [P2] Некоторые профессии игнорируют отдельные task slots
+
+`TaskFeedOwner.findSafeFood` и `TaskFeedAnimal.findBreedingFood` сканируют только `getMaidInventory`. В GUI при этом есть отдельный девятислотовый task inventory, а общие методы поиска остальных задач умеют искать по логическим слотам. Еда, положенная в task slots, для этих двух профессий невидима.
+
+Проверка: оставить единственную подходящую еду в task inventory. Использовать общий доступный инвентарь с согласованным порядком поиска.
+
+Код: [legacy/TaskFeedOwner.java:59](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskFeedOwner.java:59), [legacy/TaskFeedAnimal.java:83](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskFeedAnimal.java:83), [legacy/ContainerMaidTask.java:10](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/inventory/container/ContainerMaidTask.java:10).
+
+### 18. [P2] Wireless IO изменил слот установки и потерял ограничение дальности
+
+SRC регистрирует Wireless IO как bauble и ограничивает расстояние до привязанного блока радиусом горничной. LEGACY не допускает ItemWirelessIO в ContainerMaidBauble и сканирует его только в общем рюкзаке. При передаче проверяется измерение и загруженность чанка, но не расстояние. Связь продолжает работать на любом удалении в одном измерении, пока чанк загружен. Настройки отдельных слотов/сторон инвентаря SRC также заменены простым фильтром предметов.
+
+Проверка: установить по исходной схеме в bauble slot; отдельно разместить в рюкзаке и отвести горничную далеко от загруженного сундука.
+
+Код: [legacy/ContainerMaidBauble.java:19](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/inventory/container/ContainerMaidBauble.java:19), [legacy/EntityMaid.java:1144](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1144), [main/WirelessIOBauble.java:105](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/item/bauble/WirelessIOBauble.java:105).
+
+### 19. [P2] Прочность защитных bauble занижена до 6
+
+LEGACY задаёт всем повреждаемым bauble 6. В SRC explosion/fall имеют 32, fire/magic — 128, projectile/drown/nimble — 64; только elixir имеет 6. Это отдельная ошибка баланса, не обусловленная API 1.7.
+
+Код: [legacy/ModItems.java:43](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/init/ModItems.java:43), [main/InitItems.java:31](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/init/InitItems.java:31).
+
+### 20. [P1] Рецепт scarecrow требует несуществующий survival-ингредиент
+
+Вместо современного granite указан `Items`-вид `Blocks.stone` с metadata 1. В vanilla 1.7.10 гранита нет; обычный stone получается с metadata 0. Следовательно, без стороннего способа выдать нестандартный metadata рецепт невыполним.
+
+Нужно выбрать явно доступный 1.7 заменитель либо OreDictionary-альтернативы. Нельзя переносить metadata гранита из 1.8+ в 1.7.
+
+Код: [legacy/LegacyAltarRecipes.java:45](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/crafting/LegacyAltarRecipes.java:45). SRC: `src/main/resources/data/touhou_little_maid/recipes/altar/craft_scarecrow.json`.
+
+### 21. [P2] Выбор голосового пакета не влияет на голос
+
+`soundPackId` сохраняется и синхронизируется, но `playMaidVoice` всегда воспроизводит `touhou_little_maid:<event>`. В SRC при воспроизведении передаётся `getSoundPackId()` в `PlayMaidSoundMessage`. В LEGACY нет соответствующего выбора звука из выбранного пакета.
+
+Проверка: назначить два разных доступных пакета двум горничным и вызвать одинаковое событие. Синхронизация строки без использования при воспроизведении не является портом функции.
+
+Код: [legacy/EntityMaid.java:945](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:945), [main/EntityMaid.java:1769](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1769).
+
+### 22. [P2] TTS обходит Mute
+
+Обычные голоса проверяют `isMuted()`, но отправка MessageMaidTts и DynamicTtsPlayer.play не проверяют mute ни на сервере, ни на клиенте. Горничная с Mute продолжает озвучивать ответы AI.
+
+Код: [legacy/LegacyMaidChatService.java:51](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/ai/LegacyMaidChatService.java:51), [legacy/DynamicTtsPlayer.java:4](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/sound/DynamicTtsPlayer.java:4).
+
+### 23. [P2] Очереди фоновой работы не ограничены
+
+`newFixedThreadPool(2)` и `newSingleThreadExecutor` используют неограниченные очереди; server dispatcher также использует `ConcurrentLinkedQueue`. Ограничение числа потоков/сообщений в history не ограничивает число ожидающих HTTP-запросов, NBT-снимков или пакетных действий. При медленном сервисе/диске и поступлении быстрее обработки накопление не ограничено; отсутствует backpressure и очистка жизненного цикла мира.
+
+Нужны ограниченные очереди, запрет нескольких запросов на одну горничную и корректное завершение/сброс. Игровая нагрузка и расход памяти в этом аудите не измерялись.
+
+Код: [legacy/LegacyMaidChatService.java:32](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/ai/LegacyMaidChatService.java:32), [legacy/MaidBackupsManager.java:26](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/world/backups/MaidBackupsManager.java:26), [legacy/ServerThreadDispatcher.java:13](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/network/ServerThreadDispatcher.java:13).
+
+### 24. [P1] dev JAR не содержит используемые классы шахматных движков
+
+Основной `jar` дополнен `sourceSets.engine.output`; `devJar` собирает только `sourceSets.main.output`. Инспекция ZIP подтверждает 13 engine classes в production и 0 в dev. TileEntityCChess/WChess напрямую ссылаются на них, а postInit self-test создаёт игровые объекты. Самостоятельное использование dev-артефакта не имеет нужного runtime-кода.
+
+Нужно одинаково включить engine output в оба артефакта и проверять состав обоих.
+
+Код: `build.gradle`, блоки `jar.from sourceSets.engine.output` и `task devJar`; [legacy/TileEntityWChess.java:10](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/tileentity/TileEntityWChess.java:10).
+
+### 25. [P2] Публичное расширение профессий ломает startup self-test
+
+TaskManager предоставляет `register(IMaidTask)`, но postInit требует `getTasks().size() == 22`. Аддон, корректно зарегистрировавший дополнительную профессию до postInit, приводит к исключению и срыву запуска. Требуется проверять наличие обязательных ID, а не запрещать любое расширение размером коллекции.
+
+Код: [legacy/LegacyPortSelfTest.java:31](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/test/LegacyPortSelfTest.java:31), [legacy/TaskManager.java:64](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/task/TaskManager.java:64).
+
+### 26. [P2] Ничья в шахматах засчитывается как победа
+
+`ended()` объединяет checkmate, repeat и moveLimit. После хода игрока BlockBoardGame вызывает `recordBoardWin` для любого `ended()`. Поэтому повторение позиции/лимит ходов выдаёт победу и favorability. Нужно различать победу, поражение и ничью, а не использовать общий флаг завершения.
+
+Проверка: завершить ход игрока повторением позиции или достижением лимита без мата.
+
+Код: [legacy/TileEntityWChess.java:19](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/tileentity/TileEntityWChess.java:19), [legacy/BlockBoardGame.java:187](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockBoardGame.java:187), [legacy/BlockBoardGame.java:201](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockBoardGame.java:201).
+
+### 27. [P2] Tank backpack поглощает жидкость, но не выдаёт её обратно
+
+В LEGACY есть только перенос воды/лавы/молока из полных вёдер в поля `backpackFluid/Amount`; интерфейс выводит текст. Нет output-контейнера или обработчика наполнения пустой тары, в ItemMaidBackpack нет fluid API. Снятие рюкзака сохраняет NBT, но не делает жидкость доступной. SRC реализует вход/выход и FluidUtil в tank-контейнере.
+
+Проверка: наполнить рюкзак, затем попытаться получить полное ведро из него. Нужен двусторонний перенос с сохранением объёма.
+
+Код: [legacy/EntityMaid.java:811](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:811), [legacy/ItemMaidBackpack.java:7](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/item/ItemMaidBackpack.java:7), [main/TankBackpackContainer.java:36](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/inventory/container/backpack/TankBackpackContainer.java:36).
+
+### 28. [P2] Film сохраняет опасные состояния смерти
+
+SRC удаляет `Fire`, `Air`, `FallDistance`, `ActiveEffects`, `Leash` и выключает home mode перед записью Film. LEGACY очищает только часть тегов: огонь, эффекты и другие состояния остаются и загружаются при воскрешении. Восстановление health не очищает их. Например, умершая в огне горничная после воскрешения продолжает гореть; старый home mode также сохраняется.
+
+Нужно очистить состояния по семантике SRC с учётом vanilla 1.7 NBT. Проверка: смерть в огне/с негативными эффектами и воскрешение в безопасном месте.
+
+Код: [legacy/ItemFilm.java:25](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/item/ItemFilm.java:25), [main/ItemFilm.java:80](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/item/ItemFilm.java:80).
+
+### 29. [P1] Разрушение изголовья кровати удаляет предмет без дропа
+
+`BlockMaidBed.breakBlock` создаёт предмет только при `!head`. При разрушении изголовья этот путь пропускается; затем вторая половина удаляется под `removingOtherHalf`, и её callback также пропускает выдачу. `getItemDropped` всегда возвращает null. В результате в survival обе половины исчезают без предмета. Обратная ветка тоже некорректна: удаление нижней половины создаёт EntityItem без проверки creative. В SRC creative обрабатывается отдельно, а loot table выдаёт предмет через половину head.
+
+Нужен единый lifecycle двух половин: один предмет с сохранённым цветом при survival-разрушении любой половины и отсутствие предметов при creative-разрушении. Он должен учитывать также неудачное размещение из №03, чтобы откат не выдавал лишний дроп.
+
+Проверка после исправления: поставить цветную кровать; отдельно разрушить каждую половину в survival и creative; проверить удаление обеих частей, количество предметов и BedColor. Вывод подтверждён статически 2026-10-02, игровой сценарий не запускался.
+
+Код: [legacy/BlockMaidBed.java:92](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockMaidBed.java:92), [legacy/BlockMaidBed.java:105](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockMaidBed.java:105), [legacy/BlockMaidBed.java:119](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/block/BlockMaidBed.java:119), [main/BlockMaidBed.java:111](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/block/BlockMaidBed.java:111), [SRC loot:12](C:/Users/brawl/Desktop/mods/TLMM/src/main/resources/data/touhou_little_maid/loot_tables/blocks/maid_bed.json:12).
+
+### 30. [P2] Надевание аксессуара через ПКМ обходит закрытые слоты UI
+
+Контейнер разрешает 10/20/30 слотов по уровню благосклонности, но `EntityMaid.interact` ищет свободное место во всех 30 слотах. `findBauble` также активирует аксессуары из всех 30. При начальном уровне и заполненных первых десяти слотах следующий аксессуар уходит в невидимый/недоступный через GUI слот и действует оттуда. Дополнительно действуют аксессуары из обычного рюкзака, что уже отмечено в матрице.
+
+Проверка: низкая благосклонность, заполнить десять доступных слотов, применить одиннадцатый аксессуар через ПКМ. Требование: один лимит доступных слотов для GUI, прямого надевания и исполнения эффектов; скрытые предметы не должны становиться недоступными без определённой политики возврата.
+
+Код: [EntityMaid.java:301](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:301), [EntityMaid.java:1077](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java:1077), [ContainerMaidBauble.java:17](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/inventory/container/ContainerMaidBauble.java:17).
+
+### 31. [P2] Полоса благосклонности использует неверный знаменатель
+
+UI делит суммарные очки на `nextLevelPoint()`, который возвращает оставшиеся очки до следующего уровня. При 32/64 индикатор уже заполнен на 100%; при 64 очках он падает до 50%, хотя новый уровень только начался. SRC вычисляет долю внутри текущего уровня в `getLevelPercent()`; на максимальном уровне его результат также отличается от LEGACY.
+
+Проверка: значения 0, 32, 63, 64, 128, 191, 192, 383, 384. Сверять отдельно число очков, уровень и заполнение полосы.
+
+Код: [AbstractGuiMaid.java:126](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/gui/AbstractGuiMaid.java:126), [legacy/FavorabilityManager.java:25](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/entity/favorability/FavorabilityManager.java:25), [SRC/FavorabilityManager.java:128](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/favorability/FavorabilityManager.java:128).
+
+### 32. [P2] Подпись кнопки расписания остаётся предыдущей после переключения
+
+`actionPerformed` отправляет пакет и сразу читает `shortSchedule()` из ещё не обновлённого DataWatcher. Получив серверное состояние позднее, GUI не обновляет сохранённый `displayString`: нет updateScreen, который перечитывал бы расписание. Подпись может оставаться старой до пересоздания экрана, а при следующих нажатиях отставать на шаг. Аналогично доступность кнопки рюкзака вычисляется лишь в initGui.
+
+Проверка: переключить DAY→NIGHT на открытом экране и дождаться ответа сервера; сравнить строку и фактическое расписание. Требование: обновлять виджеты из принятого серверного состояния, без зависимости от нового клика.
+
+Код: [GuiMaid.java:57](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/gui/GuiMaid.java:57), [MessageMaidConfig.java:52](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/network/message/MessageMaidConfig.java:52).
+
+### 33. [P2] Маска слотов аксессуаров меняется независимо от контейнера
+
+`ContainerMaidBauble` фиксирует количество слотов в конструкторе. `GuiMaidBauble` каждый кадр читает текущий уровень благосклонности. Если уровень меняется при открытой вкладке (например, срабатывает автоматическое событие еды рядом с домашним контейнером), маска показывает уже другой набор доступных ячеек, чем существует в контейнере. SRC экран сохраняет уровень при создании, согласуя маску со сформированным контейнером.
+
+Проверка: открыть вкладку на границе 191/192 или 383/384, изменить уровень при открытом GUI; проверить клики и shift-click. Нужно либо синхронно пересоздать контейнер/экран, либо сохранять одинаковый снимок состояния до закрытия.
+
+Код: [ContainerMaidBauble.java:16](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/inventory/container/ContainerMaidBauble.java:16), [GuiMaidBauble.java:31](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/gui/GuiMaidBauble.java:31), [SRC/BaubleContainerScreen.java:38](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/client/gui/entity/maid/backpack/BaubleContainerScreen.java:38).
+
+### 34. [P2] Компоновка статусов перекрывает текст, часть MaidUI не локализована
+
+Предоставленный снимок показывает плохо читаемые DEF/EXP/FAV и имя под вкладками. В коде подписи на y=114/125/136/147 помещены непосредственно на полосы y=115/126/137/148; имя x=84,y=16 пересекается с областью вкладок. SRC отдельно рисует шкалу, иконку и компактное число справа, без этих наложений.
+
+`Inventory`, `Equipment`, `Main`, `Off`, `Task configuration`, `Hidden item`, `Profession tools` жёстко записаны в Java. H/P/S/B не имеют поясняющих hover-подсказок. На снимке длинное название профессии обрезается; простое ограничение ширины предотвращает выход за кнопку, но не заменяет подсказку с полным названием. Исправления локализации предметов из предыдущего прохода эти строки UI не затрагивали.
+
+Проверка: русский/английский язык, разные масштабы GUI, длинное имя горничной/профессии, все четыре вкладки. Требование: разделить зоны текста/полос/вкладок, перевести подписи и добавить объяснения кнопок и усечённых названий. Снимок не позволяет точно установить причину глубинного перекрытия OpenGL, поэтому состояние depth/lighting следует проверить в игре отдельно.
+
+Код: [AbstractGuiMaid.java:123](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/gui/AbstractGuiMaid.java:123), [AbstractGuiMaid.java:140](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/gui/AbstractGuiMaid.java:140), [GuiMaid.java:31](C:/Users/brawl/Desktop/mods/TLMM/src/legacy/java/com/github/tartaricacid/touhoulittlemaid/client/gui/GuiMaid.java:31), [SRC/AbstractMaidContainerGui.java:609](C:/Users/brawl/Desktop/mods/TLMM/src/main/java/com/github/tartaricacid/touhoulittlemaid/client/gui/entity/maid/AbstractMaidContainerGui.java:609).
+
+## Матрица остальных подсистем и полноты переноса
+
+Эта таблица фиксирует результат чтения реализаций и предел проверки, а не заменяет игровые тесты галочками.
+
+| Подсистема SRC | Что есть в LEGACY | Оценка / что остаётся |
+|---|---|---|
+| Lifecycle, proxies, Forge registrations | Отдельная Java 8 ветка, FML события, 13 mod entity registrations | Компиляция подтверждена; dedicated/client startup текущего дерева не подтверждён этим аудитом |
+| Модель горничной, tame/owner, базовые attributes | EntityTameable, cake, owner check, HP/damage/favorability | Основа есть; питание, NBT, REST и синхронизация имеют дефекты выше |
+| Combat: attack, bow, danmaku | Собственные melee/ranged цели, стрельба, enchanted arrows/danmaku | Реальные реализации; баланс, projectile friendly-fire и поведение на сложной местности требуют игрового сравнения |
+| Crossbow / trident | Собственные предметы 1.7, фактически EntityArrow | Замена: зарядка арбалета, loyalty/riptide/channeling трезубца не перенесены |
+| idle | Игра в снежки, простые idle-ветки | Частичная реализация, не весь brain SRC |
+| farm, cocoa | Сбор и сброс возраста существующих культур | Посадка на новые места не перенесена; farm №10 |
+| sugar_cane, melon, grass, snow | Собственные harvest-классы, vanilla блоки | Требуются единые разрешения, сверка Fortune/дропа/прочности; специальная логика модовых культур SRC не перенесена |
+| feed, feed_animal | Прямое кормление/размножение/выбраковка | №16–17; фильтры и настройки SRC урезаны |
+| shears, milk | Vanilla овцы/коровы, расход инструментов/вёдер | Не эквивалент общим расширяемым обработчикам/модовым животным SRC |
+| torch, extinguishing | Поиск темноты/огня, постановка факела, extinguishing entity | Реализации есть; отмена действий и взаимодействие с защитой требуют принятия |
+| fishing | Собственный bobber, FishingHooks, прочность удочки | Проверить физику поплавка, длительную рыбалку, смену расписания/выгрузку riding-сущностей |
+| honey | Производство продукта рядом с цветком каждые 600 ticks | Подмена механики: не сбор зрелого улья, нет обязательных бутылок/ножниц и поведения пчёл |
+| miner | EXTRAS с OreDictionary, ограниченным сканером, BreakEvent/HarvestDrops | В SRC базовой профессии miner нет; это отдельная добавка. Отдельно нужны испытания реальных GT/IC2/GC/TConstruct инструментов |
+| Расписание | DAY/NIGHT/ALL, пороги 0/8000/12000/16000 | Сами временные пороги совпадают с InitEntities SRC; действия сна не совпадают |
+| Home, navigation, follow | SchedulePos, vanilla FollowOwner, safeTeleportNear | Home teleport-back SRC отсутствует в SchedulePos; обычная ветка follow всё ещё использует vanilla fallback; межмировой follow требует отдельного испытания |
+| Backpacks | Размеры 6/12/24/36/18 совпадают с BackpackLevel SRC | Специальные рюкзаки и клиентские слоты не приняты: №05–07,27 |
+| Baubles/favorability | Пороги 64/192/384 и HP/attack совпадают | Прочности ошибочны; эффекты дополнительно срабатывают из обычного рюкзака; весь набор событий/бонусов SRC не перенесён |
+| Смерть, tombstone, photo/slab, backups | Сохранение/восстановление, loaded-UUID guard | Guard проверяет только загруженных сущностей, не всех сохранённых в мире. Unload→restore требует отдельного anti-dup теста; №12,28 |
+| Altar, recipes, progression | 42 записи + отдельная ветка rebirth | Количество рецептов не доказательство; №01–04,20. Теги ингредиентов SRC заменены конкретными vanilla items, новые обычные рецепты меняют прогрессию |
+| Shrine / picnic / snack cabinet | Собственные inventories, прямые взаимодействия/еда | Упрощены; shrink/остатки, многопользовательский доступ, размещение/удаление seats требуют проверки |
+| Maid bed | Две половины, цвет, TESR | Дюп №03, потеря дропа №29; занятость кровати в поиске сна не учитывается как в SRC |
+| Statue / Garage Kit / Chisel | NBT фото, структура статуи, обжиг, TESR | Код имеется; цикл создать→обжечь→сломать→поставить с NBT не запускался |
+| Beacon / Model Switcher / Scarecrow | Состояние, UI/packets, S35, spawn exclusion | Есть исполняемые реализации. Эффекты пересекающихся beacon, смена владельца привязанной maid и redstone после reload требуют отдельной проверки |
+| Board games | Gomoku эвристика, исходные chess/xiangqi engines, board states, seats/proxy blocks | Не одно лишь наличие классов; ошибки №24,26. Поиск chess вызывается синхронно на сервере; нагрузка и правила сохранения партий не приняты |
+| Broom, Chair, Box, PowerPoint, Fairy | Собственные сущности и NBT | Проверить tracking, пассажиров, полёт в multiplayer и спавн. Single-rider broom — адаптация, не полное исходное поведение |
+| GUI / сеть | 6 container-классов, 11 packet registrations, thread dispatch, ряд owner/distance/bounds checks | Расширенные экраны настройки SRC отсутствуют; №07–09,18,23. Не все проверки runtime/конкурентного доступа подтверждены |
+| Bedrock / Gecko / Molang | JSON geometry, quad renderer, фиксированные анимации известных костей | Геометрия есть; произвольные JS/Molang/Gecko controllers не исполняются. Это частичная совместимость моделей, не полноценный движок анимации SRC |
+| Ресурсы / локализация | Ресурсы SRC, перенос texture paths, .lang | Проверенные ссылки ресурсов исправны; визуальная правильность всех моделей и полнота всех переводов этим не доказаны |
+| Звук / AI / TTS | HTTP chat, история, три вида text actions, WAV | Система 141 AI-класса SRC заменена 2 классами; нет эквивалента полного agent/tool/provider/config UI. №21–23 |
+| Loot / advancements | PowerPoint в 6 ChestGenHooks, несколько achievements | Большинство loot tables/модификаторов SRC и критериев advancement не перенесено; generated JSON не становится рабочим автоматически |
+| API / интеграции | Один task API, OreDictionary, honey/miner adapters, log detection | Нет аналога большей части 85 API и 152 compat классов SRC. Лог «mod detected» не равен реализации интеграции; расширение task дополнительно сломано №25 |
+
+## Проверки, необходимые после исправлений
+
+1. Изолированный новый survival-мир: получить алтарь и пройти всю цепочку рецептов до горничной/рюкзаков, без `/give`.
+2. Inventory conservation: успешная/неудачная установка кровати, крафт стаками, снятие рюкзака, печь/бак, смерть/воскрешение, photo/slab. Сравнить количество и полный NBT до/после.
+3. Dedicated server + два клиента: расширенные слоты, обе руки, профессия после reload, model/sound selection, Mute/TTS, доступ чужого игрока.
+4. Реальные снимки SRC: руки, броня, damaged/enchanted вещи, все backpack data, home/pickup, task/game/history. Неподдерживаемые предметы должны сохраняться явно, а не исчезать молча.
+5. По сценарию на каждую из 21 исходных профессий; отдельно EXTRAS miner. Проверить инструменты/тару, пустую грядку, защиту блоков, sitting, ALL/DAY/NIGHT, unload/reload.
+6. Все блоки/сущности: placement, NBT round-trip, break/drop, перенос измерения и resource reload. Включить занятые seats/кровати и существующую maid при restore.
+7. Chess/gomoku: победа, поражение, ничья, копия board state, продолжение после reload; измерить серверный tick при нескольких партиях.
+8. Нагрузить очередь AI медленным/ошибающимся локальным stub-сервисом и backup очередь медленной записью. Проверить лимиты и очистку при выходе из мира.
+
+До этих проверок корректный статус: **собираемый частичный порт с подтверждёнными дефектами**, а не «портирование завершено».

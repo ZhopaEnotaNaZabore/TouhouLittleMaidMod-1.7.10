@@ -82,6 +82,35 @@ public final class GuiMaid extends AbstractGuiMaid {
         }
     }
 
+    @Override public void updateScreen() {
+        super.updateScreen();
+        for (Object value : buttonList) {
+            GuiButton button = (GuiButton)value;
+            if (button.id == 2) button.displayString = shortSchedule();
+            if (button.id == 3) button.displayString = (maid.isHomeMode() ? "\u00a7a" : "\u00a7c") + "H";
+            if (button.id == 4) button.displayString = (maid.isPickupEnabled() ? "\u00a7a" : "\u00a7c") + "P";
+            if (button.id == 5) button.displayString = (maid.isSitting() ? "\u00a7a" : "\u00a7c") + "S";
+            if (button.id == 7) button.enabled = !"empty".equals(maid.getBackpackType());
+        }
+    }
+
+    @Override public void drawScreen(int mouseX, int mouseY, float ticks) {
+        super.drawScreen(mouseX, mouseY, ticks);
+        for (Object value : buttonList) {
+            GuiButton button = (GuiButton)value;
+            if (!button.visible || mouseX < button.xPosition || mouseX >= button.xPosition + button.width
+                    || mouseY < button.yPosition || mouseY >= button.yPosition + button.height) continue;
+            String key = button.id == 3 ? "home" : button.id == 4 ? "pickup" : button.id == 5 ? "sitting" : button.id == 7 ? "backpack" : null;
+            String text = key == null ? null : net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.control."+key);
+            if (button.id >= 200 && button.id < 212) {
+                List<IMaidTask> tasks = new ArrayList<IMaidTask>(TaskManager.getTasks().values());
+                int index = taskPage*12+button.id-200;
+                if (index < tasks.size()) text = net.minecraft.util.StatCollector.translateToLocal(tasks.get(index).getId().replace(":", ".").replace("touhou_little_maid.", "task.touhou_little_maid."));
+            }
+            if (text != null) drawHoveringText(java.util.Collections.singletonList(text),mouseX,mouseY,fontRendererObj);
+        }
+    }
+
     private void sendConfig(int action) {
         NetworkHandler.channel.sendToServer(new MessageMaidConfig(maid.getEntityId(), action));
     }
@@ -100,21 +129,15 @@ public final class GuiMaid extends AbstractGuiMaid {
     protected void drawPageForeground(int mouseX, int mouseY) {
         fontRendererObj.drawString(shortTaskId(maid.getTaskId()), 26, 165, 0x333333);
         if (taskListOpen) fontRendererObj.drawString((taskPage + 1) + "/" + ((TaskManager.getTasks().size() + 11) / 12), -48, 12, 0x333333);
-        fontRendererObj.drawString("H", 15, 212, maid.isHomeMode() ? 0x207020 : 0x703030);
-        fontRendererObj.drawString("P", 36, 212, maid.isPickupEnabled() ? 0x207020 : 0x703030);
-        fontRendererObj.drawString("S", 57, 212, maid.isSitting() ? 0x207020 : 0x703030);
     }
 
     private String shortTaskId(String id) {
-        int separator = id == null ? -1 : id.indexOf(':');
-        String result = separator >= 0 ? id.substring(separator + 1) : id;
-        if (result == null) return "idle";
-        return result.length() > 8 ? result.substring(0, 8) : result;
+        return fontRendererObj.trimStringToWidth(readableTask(id == null ? "idle" : id), 47);
     }
 
     private String shortSchedule() {
-        String value = String.valueOf(maid.getSchedule());
-        return value.length() > 9 ? value.substring(0, 9) : value;
+        String key = "gui.touhou_little_maid.schedule." + maid.getSchedule().name().toLowerCase(java.util.Locale.ROOT);
+        return fontRendererObj.trimStringToWidth(net.minecraft.util.StatCollector.translateToLocal(key), 55);
     }
 
     private void addTaskListButtons() {
@@ -149,7 +172,7 @@ public final class GuiMaid extends AbstractGuiMaid {
         String key = "task.touhou_little_maid." + value;
         String translated = net.minecraft.util.StatCollector.translateToLocal(key);
         if (!key.equals(translated)) value = translated;
-        return value.length() > 13 ? value.substring(0, 13) : value;
+        return net.minecraft.client.Minecraft.getMinecraft().fontRenderer.trimStringToWidth(value, 73);
     }
 
     private static final class TaskTextureButton extends GuiButton {

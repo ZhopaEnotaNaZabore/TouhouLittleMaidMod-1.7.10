@@ -32,7 +32,7 @@ public final class CommandTlmMaid extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/tlmmaid <spawn|fairy|power|beaconverify|ownerverify|backup|profile|verify|status|task|schedule|home> [value]";
+        return "/tlmmaid <spawn|fairy|power|beaconverify|ownerverify|backup|profile|verify|uiverify|status|task|schedule|home> [value]";
     }
 
     @Override
@@ -61,6 +61,16 @@ public final class CommandTlmMaid extends CommandBase {
             if (args.length >= 2 && "reset".equalsIgnoreCase(args[1])) { EntityMaid.resetProfile(); sender.addChatMessage(new ChatComponentText("TLM maid profiler reset")); return; }
             long[] p=EntityMaid.getProfile();long average=p[0]==0?0:p[1]/p[0];int loaded=0;for(Object value:player.worldObj.loadedEntityList)if(value instanceof EntityMaid)loaded++;
             sender.addChatMessage(new ChatComponentText("TLM profile: loaded="+loaded+", samples="+p[0]+", avg="+(average/1000)+"us, max="+(p[2]/1000)+"us"));return;
+        }
+        if ("uiverify".equalsIgnoreCase(args[0])) {
+            try {
+                com.github.tartaricacid.touhoulittlemaid.test.MaidUiVerification.run(player);
+                sender.addChatMessage(new ChatComponentText("TLM UI verify passed: favorability, slot gates, capacity, task NBT, portable crafting"));
+            } catch (Exception error) {
+                TouhouLittleMaid.LOGGER.error("TLM UI verification failed", error);
+                sender.addChatMessage(new ChatComponentText("TLM UI verify FAILED: " + error));
+            }
+            return;
         }
         if("verify".equalsIgnoreCase(args[0])){
             try {
@@ -226,7 +236,7 @@ public final class CommandTlmMaid extends CommandBase {
     @Override
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
         if (args.length == 1) {
-            return getListOfStringsMatchingLastWord(args, "spawn", "fairy", "power", "beaconverify", "ownerverify", "backup", "profile", "verify", "status", "task", "schedule", "home");
+            return getListOfStringsMatchingLastWord(args, "spawn", "fairy", "power", "beaconverify", "ownerverify", "backup", "profile", "verify", "uiverify", "status", "task", "schedule", "home");
         }
         if (args.length == 2 && "task".equalsIgnoreCase(args[0])) {
             List<String> ids = new ArrayList<String>();

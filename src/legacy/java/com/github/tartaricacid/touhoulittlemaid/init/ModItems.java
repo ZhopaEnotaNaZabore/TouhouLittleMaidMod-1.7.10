@@ -64,7 +64,7 @@ public final class ModItems {
     public static final Item SUBSTITUTE_JIZO = simpleItem("substitute_jizo", 1);
     public static final ItemLegacyRangedWeapon CROSSBOW = new ItemLegacyRangedWeapon("crossbow", ItemLegacyRangedWeapon.Type.CROSSBOW, 326);
     public static final ItemLegacyRangedWeapon TRIDENT = new ItemLegacyRangedWeapon("trident", ItemLegacyRangedWeapon.Type.TRIDENT, 250);
-    public static final Item HONEY_BOTTLE = simpleItem("honey_bottle", 16).setTextureName("minecraft:potion_bottle_drinkable");
+    public static final Item HONEY_BOTTLE = simpleItem("honey_bottle", 16);
     public static final ItemBoardState GOMOKU_BOARD_STATE=new ItemBoardState("gomoku_board_state",ItemBoardState.Type.GOMOKU);
     public static final ItemBoardState CCHESS_BOARD_STATE=new ItemBoardState("cchess_board_state",ItemBoardState.Type.CCHESS);
     public static final ItemBoardState WCHESS_BOARD_STATE=new ItemBoardState("wchess_board_state",ItemBoardState.Type.WCHESS);

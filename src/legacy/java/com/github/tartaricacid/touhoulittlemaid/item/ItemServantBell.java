@@ -9,7 +9,6 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.ChatComponentText;
 import net.minecraft.world.World;
 
 public final class ItemServantBell extends Item {
@@ -24,7 +23,7 @@ public final class ItemServantBell extends Item {
             @SuppressWarnings("unchecked") java.util.List<Entity> entities = world.loadedEntityList;
             for (Entity entity : entities) if (entity instanceof EntityMaid && entity.getUniqueID().toString().equals(id) && ((EntityMaid) entity).getOwner() == player) { found = (EntityMaid) entity; break; }
             if (found != null) { found.setHomeMode(false); found.setMaidSitting(false); found.safeTeleportNear(player); }
-            else player.addChatMessage(new ChatComponentText(id.isEmpty() ? "Servant bell is not bound" : "Bound maid is not loaded in this dimension"));
+            else player.addChatMessage(new net.minecraft.util.ChatComponentTranslation(id.isEmpty() ? "message.touhou_little_maid.bell_unbound" : "message.touhou_little_maid.bell_unloaded"));
             world.playSoundAtEntity(player, "random.orb", 1, 0.7F);
         }
         return stack;

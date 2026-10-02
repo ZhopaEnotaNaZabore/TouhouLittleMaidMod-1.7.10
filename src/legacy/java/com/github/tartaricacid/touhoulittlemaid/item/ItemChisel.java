@@ -33,7 +33,7 @@ public final class ItemChisel extends Item {
         if (world.getBlock(x, y, z) != Blocks.clay) return false;
         ItemStack photo = findPhoto(player);
         if (photo == null) {
-            if (!world.isRemote) player.addChatMessage(new ChatComponentText("Chisel requires a maid photo in inventory"));
+            if (!world.isRemote) player.addChatMessage(new net.minecraft.util.ChatComponentTranslation("message.touhou_little_maid.chisel_photo"));
             return true;
         }
         if (!world.isRemote) {

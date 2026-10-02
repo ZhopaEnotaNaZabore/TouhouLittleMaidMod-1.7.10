@@ -18,6 +18,7 @@ import com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBeacon;
 import com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaidBeacon;
 
 public class CommonProxy implements IGuiHandler {
+    public static final int MAID_CRAFTING_GUI_ID = 6;
     public static final int MAID_GUI_ID = 0;
     public static final int MAID_BAUBLE_GUI_ID = 1;
     public static final int MAID_EQUIPMENT_GUI_ID = 2;
@@ -41,6 +42,7 @@ public class CommonProxy implements IGuiHandler {
         }
         if(id==MAID_BEACON_GUI_ID&&world.getTileEntity(x,y,z) instanceof TileEntityMaidBeacon)return new ContainerMaidBeacon((TileEntityMaidBeacon)world.getTileEntity(x,y,z));
         Entity entity = world.getEntityByID(x);
+        if (id == MAID_CRAFTING_GUI_ID && entity instanceof EntityMaid && ((EntityMaid)entity).getOwner() == player && entity.getDistanceSqToEntity(player) < 64) return new com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaidCrafting(player.inventory,(EntityMaid)entity);
         if (id == MAID_GUI_ID && entity instanceof EntityMaid && ((EntityMaid) entity).getOwner() == player) {
             return new ContainerMaid(player.inventory, (EntityMaid) entity);
         }

@@ -123,10 +123,9 @@ abstract class AbstractGuiMaid extends GuiContainer {
         drawBar(7, 115, health, 0xFFE93C3C);
         drawBar(7, 126, Math.min(1.0, maid.getTotalArmorValue() / 20.0), 0xFFB7B7B7);
         drawBar(7, 137, (maid.getMaidExperience() % 120) / 120.0, 0xFF69C850);
-        double favor = maid.getFavorabilityManager().nextLevelPoint() <= 0 ? 1.0
-                : Math.min(1.0, maid.getFavorability()
-                / (double) maid.getFavorabilityManager().nextLevelPoint());
-        drawBar(7, 148, favor, 0xFFFF8AC7);
+        drawBar(7, 148, maid.getFavorabilityManager().getLevelPercent(), 0xFFFF8AC7);
+        mc.getTextureManager().bindTexture(SIDE);
+        for (int i = 0; i < 4; i++) drawTexturedModalRect(guiLeft + 53, guiTop + 113 + i * 11, i * 9, 0, 9, 9);
     }
 
     private void drawBar(int x, int y, double value, int color) {
@@ -137,13 +136,32 @@ abstract class AbstractGuiMaid extends GuiContainer {
 
     @Override
     protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRendererObj.drawString(maid.getCommandSenderName(), 84, 16, 0x333333);
-        fontRendererObj.drawString("HP " + (int) maid.getHealth() + "/" + (int) maid.getMaxHealth(), 7, 114, 0x333333);
-        fontRendererObj.drawString("DEF " + maid.getTotalArmorValue(), 7, 125, 0x333333);
-        fontRendererObj.drawString("EXP " + maid.getMaidExperience(), 7, 136, 0x333333);
-        fontRendererObj.drawString("FAV " + maid.getFavorability(), 7, 147, 0x333333);
-        fontRendererObj.drawString("Inventory", 88, 164, 0x404040);
+        drawStatusNumber((int) maid.getHealth(), 114);
+        drawStatusNumber(maid.getTotalArmorValue(), 125);
+        drawStatusNumber(maid.getMaidExperience() / 120, 136);
+        drawStatusNumber(maid.getFavorabilityManager().getLevel(), 147);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("container.inventory"), 88, 164, 0x404040);
         drawPageForeground(mouseX, mouseY);
+    }
+
+    private void drawStatusNumber(int value, int y) {
+        GL11.glPushMatrix();
+        GL11.glScalef(0.5F, 0.5F, 1);
+        fontRendererObj.drawString(Integer.toString(value), 126, y * 2 + 4, 0x404040);
+        GL11.glPopMatrix();
+    }
+
+    @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        super.drawScreen(mouseX, mouseY, partialTicks);
+        int x = mouseX - guiLeft, y = mouseY - guiTop;
+        if (x >= 5 && x < 78 && y >= 5 && y < 108)
+            drawHoveringText(java.util.Collections.singletonList(maid.getCommandSenderName()), mouseX, mouseY, fontRendererObj);
+        if (x >= 5 && x < 78 && y >= 113 && y < 157) {
+            int row = Math.min(3, (y - 113) / 11);
+            String[] keys = {"health", "armor", "experience", "favorability"};
+            String[] values = {(int)maid.getHealth()+"/"+(int)maid.getMaxHealth(), Integer.toString(maid.getTotalArmorValue()), Integer.toString(maid.getMaidExperience()), Integer.toString(maid.getFavorability())};
+            drawHoveringText(java.util.Collections.singletonList(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.status."+keys[row])+": "+values[row]), mouseX, mouseY, fontRendererObj);
+        }
     }
 
     protected abstract void drawPageForeground(int mouseX, int mouseY);

@@ -18,6 +18,8 @@ public final class LegacyNbtMigration {
     }
 
     public static void normalize(NBTTagCompound root) {
+        if (!root.hasKey("MaidPickup") && root.hasKey("MaidIsPickup")) root.setBoolean("MaidPickup",root.getBoolean("MaidIsPickup"));
+        if (!root.hasKey("MaidHomeMode") && root.hasKey("MaidIsHome")) root.setBoolean("MaidHomeMode",root.getBoolean("MaidIsHome"));
         normalizeUuids(root);
         normalizeBackpack(root);
         normalizeScheduleDimension(root);

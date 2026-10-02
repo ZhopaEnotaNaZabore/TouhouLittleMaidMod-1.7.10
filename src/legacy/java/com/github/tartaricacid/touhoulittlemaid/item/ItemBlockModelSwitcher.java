@@ -30,7 +30,7 @@ public final class ItemBlockModelSwitcher extends ItemBlock {
             fields.setString("owner_uuid", player.getUniqueID().toString());
             if (fields != data) data.setTag("ForgeData", fields);
             root.setTag(STORAGE, data); stack.setTagCompound(root);
-            player.addChatMessage(new ChatComponentText("Model Switcher bound to maid"));
+            player.addChatMessage(new net.minecraft.util.ChatComponentTranslation("message.touhou_little_maid.switcher_bound"));
         }
         return true;
     }

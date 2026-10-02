@@ -72,11 +72,14 @@ public final class ClientProxy extends CommonProxy {
     @Override
     public void preInit(FMLPreInitializationEvent event) {
         super.preInit(event);
+        com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyItemRenderer.INSTANCE.register();
         LegacyBlockRenderIds.FURNITURE = RenderingRegistry.getNextAvailableRenderId();
         RenderingRegistry.registerBlockHandler(new RenderLegacyFurniture());
         MinecraftForge.EVENT_BUS.register(new ClientHomeAreaOverlay());
         MinecraftForge.EVENT_BUS.register(new ClientMaidDebugOverlay());
         if (Minecraft.getMinecraft().getResourceManager() instanceof SimpleReloadableResourceManager) {
+            ((SimpleReloadableResourceManager) Minecraft.getMinecraft().getResourceManager())
+                    .registerReloadListener(com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyItemRenderer.INSTANCE);
             ((SimpleReloadableResourceManager) Minecraft.getMinecraft().getResourceManager())
                     .registerReloadListener(LegacyMaidModelRegistry.INSTANCE);
             ((SimpleReloadableResourceManager) Minecraft.getMinecraft().getResourceManager())
@@ -130,6 +133,11 @@ public final class ClientProxy extends CommonProxy {
         if(id==MODEL_SWITCHER_GUI_ID&&world.getTileEntity(x,y,z) instanceof TileEntityModelSwitcher)return new GuiModelSwitcher((TileEntityModelSwitcher)world.getTileEntity(x,y,z));
         if(id==MAID_BEACON_GUI_ID&&world.getTileEntity(x,y,z) instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBeacon)return new com.github.tartaricacid.touhoulittlemaid.client.gui.GuiMaidBeacon((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBeacon)world.getTileEntity(x,y,z));
         Entity entity = world.getEntityByID(x);
+        if (id == MAID_CRAFTING_GUI_ID && entity instanceof EntityMaid && ((EntityMaid)entity).getOwner() == player) {
+            net.minecraft.client.gui.inventory.GuiCrafting gui = new net.minecraft.client.gui.inventory.GuiCrafting(player.inventory, world, 0, 0, 0);
+            gui.inventorySlots = new com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaidCrafting(player.inventory,(EntityMaid)entity);
+            return gui;
+        }
         if (id == MAID_GUI_ID && entity instanceof EntityMaid && ((EntityMaid) entity).getOwner() == player) {
             return new GuiMaid(player.inventory, (EntityMaid) entity);
         }

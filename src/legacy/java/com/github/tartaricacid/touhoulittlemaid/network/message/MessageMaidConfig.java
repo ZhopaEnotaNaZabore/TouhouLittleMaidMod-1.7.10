@@ -71,7 +71,7 @@ public final class MessageMaidConfig implements IMessage {
                     break;
                 case OPEN_BACKPACK:
                     String type=maid.getBackpackType();
-                    if("crafting_table_backpack".equals(type))player.displayGUIWorkbench((int)maid.posX,(int)maid.posY,(int)maid.posZ);
+                    if("crafting_table_backpack".equals(type))player.openGui(com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid.instance, com.github.tartaricacid.touhoulittlemaid.proxy.CommonProxy.MAID_CRAFTING_GUI_ID, maid.worldObj, maid.getEntityId(), 0, 0);
                     else if("ender_chest_backpack".equals(type))player.displayGUIChest(player.getInventoryEnderChest());
                     else player.addChatMessage(new net.minecraft.util.ChatComponentText("Backpack: "+type+("tank_backpack".equals(type)?" "+maid.getBackpackFluid()+" "+maid.getBackpackFluidAmount()+"mB":"")));
                     break;

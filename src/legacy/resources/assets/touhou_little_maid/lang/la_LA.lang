@@ -117,3 +117,17 @@ model.touhou_little_maid.saisen_bako.name=Arca Pecuniae
 model.touhou_little_maid.well.name=Puteus
 model.touhou_little_maid.torii.name=Torium
 model.touhou_little_maid.bowl.name=Plevis Simmiomari
+
+# Legacy item names and profession labels
+item.touhou_little_maid.chair.name=Sella
+item.touhou_little_maid.hakurei_gohei.name=Gopeis Hacrei
+item.touhou_little_maid.substitute_jizo.name=Dizo Subrogare
+item.touhou_little_maid.power_point.name=Punctum de Potentiis
+tile.touhou_little_maid.maid_bed.name=Lectus Ancillae
+task.touhou_little_maid.danmaku_attack=Dammacum
+task.touhou_little_maid.farm=Villa
+task.touhou_little_maid.sugar_cane=Saccharum
+task.touhou_little_maid.melon=Cucumis
+task.touhou_little_maid.grass=Herba
+task.touhou_little_maid.milk=Iac
+task.touhou_little_maid.torch=Fax

@@ -21,7 +21,7 @@ public final class ItemSmartSlab extends Item {
     public ItemSmartSlab(String name, Type type) {
         this.type = type;
         setUnlocalizedName(TouhouLittleMaid.MOD_ID + ".smart_slab");
-        setTextureName(TouhouLittleMaid.MOD_ID + ":" + name);
+        setTextureName(TouhouLittleMaid.MOD_ID + ":" + (type == Type.INIT ? "smart_slab_has_maid" : name));
         setMaxStackSize(1);
     }
 
@@ -49,7 +49,7 @@ public final class ItemSmartSlab extends Item {
             EntityMaid maid = new EntityMaid(world);
             if (type == Type.INIT) {
                 if (!maid.canOwnerAddMaid(player)) {
-                    player.addChatMessage(new ChatComponentText("Maid owner limit reached")); return true;
+                    player.addChatMessage(new net.minecraft.util.ChatComponentTranslation("message.touhou_little_maid.owner_limit")); return true;
                 }
                 maid.setTamed(true); maid.func_152115_b(player.getUniqueID().toString());
             } else {
@@ -57,10 +57,10 @@ public final class ItemSmartSlab extends Item {
                 NBTTagCompound data = stack.getTagCompound().getCompoundTag(MAID_INFO);
                 if (!player.getUniqueID().toString().equals(data.getString("OwnerUUID"))
                         && !player.getUniqueID().toString().equals(data.getString("Owner"))) {
-                    player.addChatMessage(new ChatComponentText("This slab belongs to another owner")); return true;
+                    player.addChatMessage(new net.minecraft.util.ChatComponentTranslation("message.touhou_little_maid.slab_owner")); return true;
                 }
                 if (!MaidWorldIndex.canRestore(data)) {
-                    player.addChatMessage(new ChatComponentText("This maid is already loaded")); return true;
+                    player.addChatMessage(new net.minecraft.util.ChatComponentTranslation("message.touhou_little_maid.already_loaded")); return true;
                 }
                 maid.readFromNBT(data);
             }

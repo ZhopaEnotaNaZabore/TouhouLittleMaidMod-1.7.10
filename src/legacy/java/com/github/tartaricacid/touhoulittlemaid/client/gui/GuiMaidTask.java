@@ -17,8 +17,8 @@ public final class GuiMaidTask extends AbstractGuiMaid {
 
     @Override
     protected void drawPageForeground(int mouseX, int mouseY) {
-        fontRendererObj.drawString("Task configuration", 88, 27, 0x404040);
-        fontRendererObj.drawString("Hidden item", 143, 35, 0x404040);
-        fontRendererObj.drawString("Profession tools", 88, 70, 0x404040);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.task_configuration"), 88, 27, 0x404040);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.hidden_item"), 143, 35, 0x404040);
+        fontRendererObj.drawString(net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.profession_tools"), 88, 70, 0x404040);
     }
 }
