@@ -24,7 +24,7 @@ public final class MaidAIRegression {
         world.testTime=12000;check(maid.canRunCombatAI(),"night work starts");
         maid.schedule=MaidSchedule.ALL;world.testTime=18000;check(maid.canRunCombatAI(),"all day work");
         for(String task:new String[]{TaskManager.HONEY_ID,TaskManager.CROSSBOW_ATTACK_ID,TaskManager.TRIDENT_ATTACK_ID}){
-            check(!TaskManager.isCombatTask(task),"stub not combat: "+task);
+            check(TaskManager.isCombatTask(task)==(!TaskManager.HONEY_ID.equals(task) && com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct.installed()),"optional combat classification: "+task);
         }
         MultiblockRegression.TestPlayer owner=MultiblockRegression.player();owner.worldObj=world;owner.dimension=1;
         check(!maid.safeTeleportNear(owner),"other dimension coordinates cannot be used for teleport");

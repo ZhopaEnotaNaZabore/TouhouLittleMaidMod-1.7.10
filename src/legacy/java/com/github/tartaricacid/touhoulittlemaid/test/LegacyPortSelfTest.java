@@ -27,20 +27,26 @@ public final class LegacyPortSelfTest {
     private LegacyPortSelfTest() {
     }
 
-    public static void run() {
+    public static void validateProfessions() {
         check(TaskManager.getTasks().size() == 22, "profession registry must contain 21 source professions plus EXTRAS miner");
         check(TaskManager.getTasks().containsKey(TaskManager.MINER_ID), "EXTRAS miner profession missing");
         check(TaskManager.isCombatTask(TaskManager.ATTACK_ID)
                 && TaskManager.isCombatTask(TaskManager.RANGED_ATTACK_ID)
                 && TaskManager.isCombatTask(TaskManager.DANMAKU_ATTACK_ID)
                 && !TaskManager.isCombatTask(TaskManager.MINER_ID), "combat profession classification invalid");
-        // Keep unsupported professions registered for saved task IDs, but inert.
-        for (String stubId : new String[] { TaskManager.CROSSBOW_ATTACK_ID,
-                TaskManager.TRIDENT_ATTACK_ID, TaskManager.HONEY_ID }) {
-            check(TaskManager.getTasks().containsKey(stubId), "stub profession missing: " + stubId);
-            check(!TaskManager.isCombatTask(stubId), "stub classified as combat: " + stubId);
-            TaskManager.getTasks().get(stubId).tick(null);
+        // Optional combat professions retain their IDs in every installation.
+        boolean tinkers = com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct.installed();
+        for (String id : new String[] { TaskManager.CROSSBOW_ATTACK_ID, TaskManager.TRIDENT_ATTACK_ID }) {
+            check(TaskManager.getTasks().containsKey(id), "optional profession missing: " + id);
+            check(TaskManager.isCombatTask(id) == tinkers, "optional combat classification invalid: " + id);
         }
+        check(TaskManager.getTasks().containsKey(TaskManager.HONEY_ID), "honey profession missing");
+        check(!TaskManager.isCombatTask(TaskManager.HONEY_ID), "honey stub classified as combat");
+        // Never tick tasks with a null maid: enabled integrations require a real entity.
+    }
+
+    public static void run() {
+        validateProfessions();
         check(com.github.tartaricacid.touhoulittlemaid.compat.miner.LegacyOreClassifier.isOreDictionaryName("oreCopper"), "standard mod ore name rejected");
         check(com.github.tartaricacid.touhoulittlemaid.compat.miner.LegacyOreClassifier.isOreDictionaryName("denseOreTungsten"), "dense mod ore name rejected");
         check(!com.github.tartaricacid.touhoulittlemaid.compat.miner.LegacyOreClassifier.isOreDictionaryName("blockCopper"), "storage block classified as ore");

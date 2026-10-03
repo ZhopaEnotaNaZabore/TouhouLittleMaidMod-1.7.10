@@ -89,6 +89,7 @@ public final class TileEntityRegression {
         AnimationSpawnProbe.run();
         MaidRenderRegression.run(root);
         MaidBedRegression.run();
+        MaidStartupRegression.run();
         MaidAIRegression.run();
         MaidFarmRegression.run();
         MaidFeedRegression.run();
