@@ -473,13 +473,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     @Override
     public void attackEntityWithRangedAttack(EntityLivingBase target, float distanceFactor) {
         if (!canEngageCombat()) return;
-        if (TaskManager.CROSSBOW_ATTACK_ID.equals(getTaskId()) || TaskManager.TRIDENT_ATTACK_ID.equals(getTaskId())) {
-            boolean crossbow=TaskManager.CROSSBOW_ATTACK_ID.equals(getTaskId());ItemStack weapon=maidEquipmentInventory.getStackInSlot(0);if(weapon==null||weapon.getItem()!=(crossbow?ModItems.CROSSBOW:ModItems.TRIDENT)||target==null)return;
-            int arrowSlot=crossbow?findInventorySlot(Items.arrow):-1;if(crossbow&&arrowSlot<0)return;
-            float distance=getDistanceToEntity(target);float velocity=MathHelper.clamp_float(distance/10.0F,1.6F,3.2F);float inaccuracy=1.0F-MathHelper.clamp_float(distance/100.0F,0.0F,0.9F);
-            EntityArrow arrow=new EntityArrow(worldObj,this,target,crossbow?2.2F:velocity,inaccuracy);arrow.setDamage(crossbow?4.0D:6.0D);arrow.canBePickedUp=0;worldObj.spawnEntityInWorld(arrow);
-            if(crossbow)consumeInventoryItem(arrowSlot);weapon.damageItem(1,this);if(weapon.stackSize<=0)maidEquipmentInventory.setInventorySlotContents(0,null);maidEquipmentInventory.markDirty();swingItem();playSound("random.bow",1,crossbow?0.8F:1.1F);playMaidVoice("maid.mode.range_attack");return;
-        }
+        // Unsupported vanilla 1.7.10 professions must never fire surrogate arrows.
+        if (TaskManager.CROSSBOW_ATTACK_ID.equals(getTaskId()) || TaskManager.TRIDENT_ATTACK_ID.equals(getTaskId())) return;
         if (TaskManager.DANMAKU_ATTACK_ID.equals(getTaskId())) {
             ItemStack gohei = maidEquipmentInventory.getStackInSlot(0);
             if (gohei == null || (gohei.getItem() != ModItems.HAKUREI_GOHEI
@@ -837,8 +832,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     public boolean hasRangedWeaponForCurrentTask() {
         return (TaskManager.RANGED_ATTACK_ID.equals(getTaskId()) && hasBowAndArrow())
                 || (TaskManager.DANMAKU_ATTACK_ID.equals(getTaskId()) && hasGohei())
-                || (TaskManager.CROSSBOW_ATTACK_ID.equals(getTaskId()) && isMainhand(ModItems.CROSSBOW) && findInventorySlot(Items.arrow)>=0)
-                || (TaskManager.TRIDENT_ATTACK_ID.equals(getTaskId()) && isMainhand(ModItems.TRIDENT));
+                ;
     }
 
     private boolean isMainhand(net.minecraft.item.Item item) {
