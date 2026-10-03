@@ -15,6 +15,7 @@ import com.github.tartaricacid.touhoulittlemaid.network.message.MessageSetMaidTa
 import com.github.tartaricacid.touhoulittlemaid.network.message.MessageModelSwitcherEdit;
 import com.github.tartaricacid.touhoulittlemaid.network.message.MessageMaidBeaconAction;
 import com.github.tartaricacid.touhoulittlemaid.network.message.MessagePlayerPower;
+import com.github.tartaricacid.touhoulittlemaid.network.message.MessageMaidAction;
 
 public final class NetworkHandler {
     public static SimpleNetworkWrapper channel;
@@ -35,5 +36,6 @@ public final class NetworkHandler {
         channel.registerMessage(MessageModelSwitcherEdit.Handler.class, MessageModelSwitcherEdit.class, 8, Side.SERVER);
         channel.registerMessage(MessageMaidBeaconAction.Handler.class, MessageMaidBeaconAction.class, 9, Side.SERVER);
         channel.registerMessage(MessagePlayerPower.Handler.class, MessagePlayerPower.class, 10, Side.CLIENT);
+        channel.registerMessage(MessageMaidAction.Handler.class, MessageMaidAction.class, 11, Side.CLIENT);
     }
 }

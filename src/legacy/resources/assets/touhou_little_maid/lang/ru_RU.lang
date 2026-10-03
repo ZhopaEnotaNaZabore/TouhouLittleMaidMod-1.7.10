@@ -484,3 +484,9 @@ gui.touhou_little_maid.off_hand=Доп.
 gui.touhou_little_maid.task_configuration=Настройка профессии
 gui.touhou_little_maid.hidden_item=Скрытый предмет
 gui.touhou_little_maid.profession_tools=Инструменты профессии
+message.touhou_little_maid.altar.not_enough_power=У вас не хватает силы.
+
+container.touhou_little_maid.tank=Рюкзак-бак
+gui.touhou_little_maid.tank.fill=В бак
+gui.touhou_little_maid.tank.drain=Из бака
+gui.touhou_little_maid.control.backpack_open=Инвентарь рюкзака уже открыт справа

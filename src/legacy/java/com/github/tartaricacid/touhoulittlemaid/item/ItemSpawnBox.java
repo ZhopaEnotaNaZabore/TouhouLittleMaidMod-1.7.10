@@ -23,17 +23,23 @@ public final class ItemSpawnBox extends Item {
         if (side == 1) y++; else if (side == 2) z--; else if (side == 3) z++;
         else if (side == 4) x--; else if (side == 5) x++;
         if (!world.isAirBlock(x, y, z)) return false;
+        if(world.isRemote)return true;
+        if(!spawnWithMaid(world,x+.5D,y,z+.5D))return false;
+        if (!player.capabilities.isCreativeMode) --stack.stackSize;
+        return true;
+    }
+    public static boolean spawnWithMaid(World world,double x,double y,double z){
+        if(world.isRemote)return false;
         if (!world.isRemote) {
-            EntityBox box=new EntityBox(world,x+.5D,y,z+.5D);
-            world.spawnEntityInWorld(box);
+            EntityBox box=new EntityBox(world,x,y,z);
+            if(!world.spawnEntityInWorld(box))return false;
             com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid maid=
                     new com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid(world);
             maid.onSpawnWithEgg(null);
-            maid.setPosition(x+.5D,y,z+.5D);
-            world.spawnEntityInWorld(maid);
+            maid.setPosition(x,y,z);
+            if(!world.spawnEntityInWorld(maid)){box.setDead();return false;}
             maid.mountEntity(box);
         }
-        if (!player.capabilities.isCreativeMode) --stack.stackSize;
         return true;
     }
 }

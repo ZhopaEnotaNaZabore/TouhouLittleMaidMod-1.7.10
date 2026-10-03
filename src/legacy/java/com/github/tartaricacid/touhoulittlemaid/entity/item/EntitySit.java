@@ -39,6 +39,20 @@ public final class EntitySit extends Entity {
             if (riddenByEntity == null) emptyTicks++; else emptyTicks = 0;
             if (riddenByEntity instanceof EntityMaid) {
                 EntityMaid maid = (EntityMaid) riddenByEntity;
+                if ("bed".equals(getJoyType())) {
+                    net.minecraft.tileentity.TileEntity tile=worldObj.blockExists(associatedX,associatedY,associatedZ)
+                            ? worldObj.getTileEntity(associatedX,associatedY,associatedZ):null;
+                    if (!(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)
+                            || !((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)tile).isComplete()) {
+                        maid.mountEntity(null);setDead();return;
+                    }
+                }
+                if ("fishing".equals(getJoyType()) && !maid.canRemainFishing()) {
+                    maid.setFishingHookActive(false);
+                    maid.mountEntity(null);
+                    setDead();
+                    return;
+                }
                 maid.rotationYaw = rotationYaw;
                 maid.rotationYawHead = rotationYaw;
                 if (ticksExisted % 20 == 0 && !getJoyType().isEmpty()
@@ -51,7 +65,7 @@ public final class EntitySit extends Entity {
     }
 
     @Override
-    public double getMountedYOffset() { return -0.25D; }
+    public double getMountedYOffset() { return "bed".equals(getJoyType()) ? 0 : -0.25D; }
     @Override
     public boolean canBeCollidedWith() { return false; }
     @Override

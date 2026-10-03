@@ -47,7 +47,7 @@ public final class MessageMaidConfig implements IMessage {
             ServerThreadDispatcher.enqueue(new Runnable(){public void run(){Entity entity = player.worldObj.getEntityByID(message.entityId);
             if (!(entity instanceof EntityMaid)) return;
             EntityMaid maid = (EntityMaid) entity;
-            if (maid.getOwner() != player || maid.getDistanceSqToEntity(player) >= 64.0D) return;
+            if (!maid.isEntityAlive() || maid.getOwner() != player || maid.getDistanceSqToEntity(player) >= 64.0D) return;
 
             switch (message.action) {
                 case CYCLE_SCHEDULE:
@@ -73,7 +73,11 @@ public final class MessageMaidConfig implements IMessage {
                     String type=maid.getBackpackType();
                     if("crafting_table_backpack".equals(type))player.openGui(com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid.instance, com.github.tartaricacid.touhoulittlemaid.proxy.CommonProxy.MAID_CRAFTING_GUI_ID, maid.worldObj, maid.getEntityId(), 0, 0);
                     else if("ender_chest_backpack".equals(type))player.displayGUIChest(player.getInventoryEnderChest());
-                    else player.addChatMessage(new net.minecraft.util.ChatComponentText("Backpack: "+type+("tank_backpack".equals(type)?" "+maid.getBackpackFluid()+" "+maid.getBackpackFluidAmount()+"mB":"")));
+                    else if("tank_backpack".equals(type))player.openGui(com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid.instance,com.github.tartaricacid.touhoulittlemaid.proxy.CommonProxy.MAID_TANK_GUI_ID,maid.worldObj,maid.getEntityId(),0,0);
+                    else if("furnace_backpack".equals(type))player.openGui(com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid.instance,com.github.tartaricacid.touhoulittlemaid.proxy.CommonProxy.MAID_FURNACE_GUI_ID,maid.worldObj,maid.getEntityId(),0,0);
+                    else if (!"empty".equals(type) && (!(player.openContainer instanceof com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaid)
+                            || ((com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaid)player.openContainer).getMaid()!=maid))
+                        player.openGui(com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid.instance,com.github.tartaricacid.touhoulittlemaid.proxy.CommonProxy.MAID_GUI_ID,maid.worldObj,maid.getEntityId(),0,0);
                     break;
                 default:
                     break;

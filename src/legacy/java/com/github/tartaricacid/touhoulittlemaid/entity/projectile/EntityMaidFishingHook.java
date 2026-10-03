@@ -65,9 +65,7 @@ public final class EntityMaidFishingHook extends Entity {
         if (!worldObj.isRemote && maid != null && !maid.hasFishingHook())
             maid.setFishingHookActive(true);
         if (!worldObj.isRemote && (maid == null || !maid.isEntityAlive()
-                || !TaskManager.FISHING_ID.equals(maid.getTaskId())
-                || maid.getCurrentActivity() != MaidActivity.WORK
-                || maid.ridingEntity == null
+                || !maid.canRemainFishing()
                 || getRod(maid, dataWatcher.getWatchableObjectInt(WATCHER_ROD_SLOT)) == null
                 || maid.getDistanceSqToEntity(this) > 32.0D * 32.0D)) {
             setDead();

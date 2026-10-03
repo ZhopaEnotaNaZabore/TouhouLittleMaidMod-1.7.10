@@ -391,3 +391,4 @@ task.touhou_little_maid.milk=Latte
 task.touhou_little_maid.torch=Torcia
 task.touhou_little_maid.feed_animal=Alleva
 task.touhou_little_maid.extinguishing=Spegni
+message.touhou_little_maid.altar.not_enough_power=Non hai abbastanza energia.

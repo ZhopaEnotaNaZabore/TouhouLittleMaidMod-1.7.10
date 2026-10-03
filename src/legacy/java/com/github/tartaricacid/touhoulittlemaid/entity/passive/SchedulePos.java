@@ -16,7 +16,11 @@ public final class SchedulePos {
     private boolean configured;
 
     public void tick(EntityMaid maid) {
-        if (!maid.isHomeMode() || maid.ticksExisted % 40 != 0) return;
+        if (!maid.isHomeMode() || dimension != maid.dimension) {
+            maid.detachHome();
+            return;
+        }
+        if (maid.isRiding() || maid.isMaidSleeping() || maid.ticksExisted % 40 != 0) return;
         restrictTo(maid);
         if (!maid.isWithinRestriction() && !maid.isSitting()) {
             Point center = getForActivity(maid.getCurrentActivity());
@@ -25,7 +29,7 @@ public final class SchedulePos {
     }
 
     public void restrictTo(EntityMaid maid) {
-        if (!maid.isHomeMode()) {
+        if (!maid.isHomeMode() || dimension != maid.dimension) {
             maid.detachHome();
             return;
         }

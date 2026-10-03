@@ -130,9 +130,19 @@ public final class ClientProxy extends CommonProxy {
 
     @Override
     public Object getClientGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
+        if (id==ALTAR_GUI_ID && world.getTileEntity(x,y,z) instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityAltar)
+            return new com.github.tartaricacid.touhoulittlemaid.client.gui.GuiAltar(player.inventory,(com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityAltar)world.getTileEntity(x,y,z));
         if(id==MODEL_SWITCHER_GUI_ID&&world.getTileEntity(x,y,z) instanceof TileEntityModelSwitcher)return new GuiModelSwitcher((TileEntityModelSwitcher)world.getTileEntity(x,y,z));
         if(id==MAID_BEACON_GUI_ID&&world.getTileEntity(x,y,z) instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBeacon)return new com.github.tartaricacid.touhoulittlemaid.client.gui.GuiMaidBeacon((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBeacon)world.getTileEntity(x,y,z));
         Entity entity = world.getEntityByID(x);
+        if(id==MAID_TANK_GUI_ID && entity instanceof EntityMaid && ((EntityMaid)entity).getOwner()==player)
+            return new com.github.tartaricacid.touhoulittlemaid.client.gui.GuiMaidTank(player.inventory,(EntityMaid)entity);
+        if(id==MAID_FURNACE_GUI_ID && entity instanceof EntityMaid && ((EntityMaid)entity).getOwner()==player){
+            com.github.tartaricacid.touhoulittlemaid.inventory.MaidFurnaceInventory furnace=((EntityMaid)entity).getFurnaceInventory();
+            net.minecraft.client.gui.inventory.GuiFurnace gui=new net.minecraft.client.gui.inventory.GuiFurnace(player.inventory,furnace);
+            gui.inventorySlots=new com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaidFurnace(player.inventory,furnace);
+            return gui;
+        }
         if (id == MAID_CRAFTING_GUI_ID && entity instanceof EntityMaid && ((EntityMaid)entity).getOwner() == player) {
             net.minecraft.client.gui.inventory.GuiCrafting gui = new net.minecraft.client.gui.inventory.GuiCrafting(player.inventory, world, 0, 0, 0);
             gui.inventorySlots = new com.github.tartaricacid.touhoulittlemaid.inventory.container.ContainerMaidCrafting(player.inventory,(EntityMaid)entity);

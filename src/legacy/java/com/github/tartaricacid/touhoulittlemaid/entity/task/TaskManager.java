@@ -102,6 +102,8 @@ public final class TaskManager {
             return;
         }
         oldTask.onDeselected(maid);
+        maid.setAttackTarget(null);
+        maid.getNavigator().clearPathEntity();
         maid.setTaskIdInternal(newTask.getId());
         newTask.onSelected(maid);
     }

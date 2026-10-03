@@ -4,6 +4,22 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 
 public final class TileEntityMaidBed extends TileEntity {
+    /** A stale tile or a missing/mismatched foot is not a sleeping destination. */
+    public boolean isComplete() {
+        if(worldObj==null || !worldObj.blockExists(xCoord,yCoord,zCoord)
+                || !(worldObj.getBlock(xCoord,yCoord,zCoord) instanceof com.github.tartaricacid.touhoulittlemaid.block.BlockMaidBed)) return false;
+        int meta=worldObj.getBlockMetadata(xCoord,yCoord,zCoord),facing=meta&3;
+        if((meta&8)==0)return false;
+        int dx=facing==1?-1:facing==3?1:0,dz=facing==0?1:facing==2?-1:0;
+        return worldObj.blockExists(xCoord-dx,yCoord,zCoord-dz)
+                && worldObj.getBlock(xCoord-dx,yCoord,zCoord-dz)==worldObj.getBlock(xCoord,yCoord,zCoord)
+                && worldObj.getBlockMetadata(xCoord-dx,yCoord,zCoord-dz)==facing;
+    }
+
+    @Override public net.minecraft.util.AxisAlignedBB getRenderBoundingBox() {
+        return net.minecraft.util.AxisAlignedBB.getBoundingBox(xCoord - 2,yCoord + 0,zCoord - 2,xCoord + 2,yCoord + 1,zCoord + 2);
+    }
+
     /** Modern DyeColor id (pink=6), deliberately independent of reversed 1.7 dye damage. */
     private int color = 6;
 
@@ -16,9 +32,10 @@ public final class TileEntityMaidBed extends TileEntity {
 
     @Override public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
-        NBTTagCompound data=tag.hasKey("ForgeData",10)?tag.getCompoundTag("ForgeData"):tag;
+        boolean modernNested = !tag.hasKey("BedColor") && tag.hasKey("ForgeData",10);
+        NBTTagCompound data=LegacyTileNbt.data(tag);
         if(!data.hasKey("BedColor")) color=6;
-        else if(data.getBoolean("ModernBedColor")||data!=tag)color=Math.max(0,Math.min(15,data.getInteger("BedColor")));
+        else if(data.getBoolean("ModernBedColor")||modernNested)color=Math.max(0,Math.min(15,data.getInteger("BedColor")));
         else color=15-Math.max(0,Math.min(15,data.getInteger("BedColor")));
     }
     @Override public void writeToNBT(NBTTagCompound tag) {

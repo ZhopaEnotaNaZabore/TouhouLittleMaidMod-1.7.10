@@ -20,12 +20,15 @@ public final class TaskFeedAnimal implements IMaidTask {
     @Override
     @SuppressWarnings("unchecked")
     public void tick(EntityMaid maid) {
-        if (maid.isSitting() || !maid.isPeriodicTick(20)) return;
+        if (maid.worldObj.isRemote || maid.isSitting() || maid.isMaidSleeping() || !maid.isWorkingNow() || !maid.isPeriodicTick(20)) return;
         EntityLivingBase ownerEntity = maid.getOwner();
         if (!(ownerEntity instanceof EntityPlayer)) return;
         List<EntityAnimal> animals = maid.worldObj.getEntitiesWithinAABB(
                 EntityAnimal.class, maid.boundingBox.expand(10.0D, 4.0D, 10.0D));
-        if (animals.size() >= MAX_NEARBY_ANIMALS - 2) {
+        int localCount = 0;
+        for (EntityAnimal animal : animals) if (animal.isEntityAlive()
+                && maid.isPositionWithinRestriction(animal.posX, animal.posY, animal.posZ)) localCount++;
+        if (localCount >= MAX_NEARBY_ANIMALS - 2) {
             updateCullTarget(maid, animals);
             return;
         }
@@ -50,8 +53,8 @@ public final class TaskFeedAnimal implements IMaidTask {
             maid.getNavigator().tryMoveToEntityLiving(target, 0.65D);
             return;
         }
+        if (maid.takeOneFromSlot(foodSlot) == null) return;
         target.func_146082_f((EntityPlayer) ownerEntity);
-        maid.takeOneFromSlot(foodSlot);
         maid.swingItem();
     }
 
@@ -81,10 +84,6 @@ public final class TaskFeedAnimal implements IMaidTask {
     public void onDeselected(EntityMaid maid) { maid.setAttackTarget(null); }
 
     private int findBreedingFood(EntityMaid maid, EntityAnimal animal) {
-        for (int slot = 0; slot < maid.getMaidInventory().getSizeInventory(); slot++) {
-            ItemStack stack = maid.getMaidInventory().getStackInSlot(slot);
-            if (stack != null && animal.isBreedingItem(stack)) return slot;
-        }
-        return -1;
+        return maid.findAvailableInventorySlot(animal::isBreedingItem);
     }
 }

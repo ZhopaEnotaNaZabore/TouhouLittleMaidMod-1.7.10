@@ -79,6 +79,7 @@ public final class TileEntityGomoku extends TileEntityJoy {
 
     @Override public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
+        tag = LegacyTileNbt.data(tag);
         java.util.Arrays.fill(board, 0);
         if (tag.hasKey("ChessData", 11)) {
             int[] saved = tag.getIntArray("ChessData");
@@ -101,7 +102,7 @@ public final class TileEntityGomoku extends TileEntityJoy {
             int px = point.getInteger("x"), py = point.getInteger("y");
             latest = px >= 0 && px < 15 && py >= 0 && py < 15 ? py * 15 + px : -1;
         } else {
-            latest = tag.getInteger("LatestChessPoint");
+            latest = tag.hasKey("LatestChessPoint") ? tag.getInteger("LatestChessPoint") : -1;
             if (latest < -1 || latest >= board.length) latest = -1;
         }
     }

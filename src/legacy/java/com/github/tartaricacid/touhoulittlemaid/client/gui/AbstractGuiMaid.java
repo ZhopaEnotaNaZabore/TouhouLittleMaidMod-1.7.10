@@ -90,10 +90,15 @@ abstract class AbstractGuiMaid extends GuiContainer {
         // after the flat background and isolate its state from slot rendering.
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
         GL11.glPushMatrix();
-        GuiInventory.func_147046_a(guiLeft + 40, guiTop + 106, 38,
-                guiLeft + 40 - mouseX, guiTop + 62 - mouseY, maid);
-        GL11.glPopMatrix();
-        GL11.glPopAttrib();
+        float previousViewYaw=net.minecraft.client.renderer.entity.RenderManager.instance.playerViewY;
+        try(com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyMaidPreviewContext preview=
+                    com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyMaidPreviewContext.enter(maid,partialTicks)){
+            GuiInventory.func_147046_a(guiLeft + 40, guiTop + 106, 38,
+                    guiLeft + 40 - mouseX, guiTop + 62 - mouseY, maid);
+        } finally {
+            net.minecraft.client.renderer.entity.RenderManager.instance.playerViewY=previousViewYaw;
+            GL11.glPopMatrix();GL11.glPopAttrib();
+        }
         GL11.glColor4f(1, 1, 1, 1);
     }
 

@@ -33,12 +33,20 @@ public final class LegacyBedrockTileModels implements IResourceManagerReloadList
             GL11.glTranslated(x + 0.5D, y + 1.5D * scale, z + 0.5D);
             GL11.glScalef(-scale, -scale, scale);
             int facing = tile.getWorldObj() == null ? 0 : tile.getBlockMetadata() & 3;
+            if(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat)facing-=2;
             GL11.glRotatef(facing * 90.0F, 0.0F, 1.0F, 0.0F);
+            // SRC bed is rendered from its HEAD tile with local origin z=-.5,
+            // not the ordinary furniture origin z=+.5 (one whole block apart).
+            if(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)
+                GL11.glTranslatef(0,0,-1);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
             GL11.glColor4f(1, 1, 1, 1);
             Minecraft.getMinecraft().getTextureManager().bindTexture(
                     new ResourceLocation(TouhouLittleMaid.MOD_ID, "textures/bedrock/block/" + texture + ".png"));
-            model.render(null, 0, 0, 0, 0, 0, 1.0F / 16.0F);
+            if(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat){
+                com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat picnic=(com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat)tile;
+                model.renderStatic(1F/16F,new String[]{"basketHide","breadHide","cakeHide"},new boolean[]{picnic.getStackInSlot(0)!=null,picnic.getStackInSlot(1)!=null,picnic.getStackInSlot(2)!=null});
+            }else model.renderStatic(1F/16F,null,null);
         } finally {
             GL11.glPopMatrix();
             GL11.glPopAttrib();

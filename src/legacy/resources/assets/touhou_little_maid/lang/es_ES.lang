@@ -402,3 +402,4 @@ task.touhou_little_maid.extinguishing=Extintor
 task.touhou_little_maid.board_games=Partidas
 task.touhou_little_maid.gun_attack=Arma
 task.touhou_little_maid.fishing=Pescando
+message.touhou_little_maid.altar.not_enough_power=No tienes suficiente poder.

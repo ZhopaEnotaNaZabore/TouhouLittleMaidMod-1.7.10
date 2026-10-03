@@ -6,21 +6,41 @@ import net.minecraft.entity.ai.EntityAIArrowAttack;
 
 public final class EntityAIMaidRangedAttack extends EntityAIArrowAttack {
     private final EntityMaid maid;
+    private final String taskId;
+    private final double range;
 
     public EntityAIMaidRangedAttack(EntityMaid maid) {
-        super(maid, 0.8D, 20, 40, 16.0F);
+        this(maid, TaskManager.RANGED_ATTACK_ID);
+    }
+
+    public EntityAIMaidRangedAttack(EntityMaid maid, String taskId) {
+        super(maid, 0.8D, 20, 40, (float) TaskManager.combatRange(taskId));
         this.maid = maid;
+        this.taskId = taskId;
+        this.range = TaskManager.combatRange(taskId);
     }
 
     @Override
     public boolean shouldExecute() {
-        return maid.canEngageCombat() && maid.hasRangedWeaponForCurrentTask()
+        return taskId.equals(maid.getTaskId()) && maid.canRunCombatAI() && maid.hasRangedWeaponForCurrentTask()
                 && super.shouldExecute();
     }
 
     @Override
     public boolean continueExecuting() {
-        return maid.canEngageCombat() && maid.hasRangedWeaponForCurrentTask()
+        return taskId.equals(maid.getTaskId()) && maid.canRunCombatAI() && maid.hasRangedWeaponForCurrentTask()
                 && super.continueExecuting();
+    }
+    @Override
+    public void updateTask() {
+        net.minecraft.entity.EntityLivingBase target = maid.getAttackTarget();
+        maid.updateRangedPresentation(target != null && maid.getEntitySenses().canSee(target)
+                && maid.getDistanceSqToEntity(target) <= range * range);
+        super.updateTask();
+    }
+    @Override
+    public void resetTask() {
+        super.resetTask();
+        maid.updateRangedPresentation(false);
     }
 }

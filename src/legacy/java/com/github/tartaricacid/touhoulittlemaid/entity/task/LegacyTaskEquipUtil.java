@@ -4,7 +4,6 @@ import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.SharedMonsterAttributes;
-import net.minecraft.inventory.IInventory;
 import com.github.tartaricacid.touhoulittlemaid.compat.miner.LegacyMiningToolCompat;
 
 /** Java 8 counterpart of the source TaskEquipUtil main-hand transaction. */
@@ -34,8 +33,7 @@ final class LegacyTaskEquipUtil {
     static boolean ensureAttackWeapon(EntityMaid maid) {
         ItemStack held = maid.getMaidEquipmentInventory().getStackInSlot(0);
         if (isAttackWeapon(held)) return true;
-        int sourceSlot = findAttackWeapon(maid.getMaidTaskInventory(), 200);
-        if (sourceSlot < 0) sourceSlot = findAttackWeapon(maid.getMaidInventory(), 0);
+        int sourceSlot = maid.findAvailableInventorySlot(LegacyTaskEquipUtil::isAttackWeapon);
         if (sourceSlot < 0) return false;
         ItemStack replacement = maid.takeOneFromSlot(sourceSlot);
         if (replacement == null) return false;
@@ -51,8 +49,7 @@ final class LegacyTaskEquipUtil {
     static boolean ensureMiningTool(EntityMaid maid) {
         ItemStack held = maid.getMaidEquipmentInventory().getStackInSlot(0);
         if (LegacyMiningToolCompat.isMiningTool(held)) return true;
-        int sourceSlot = findMiningTool(maid.getMaidTaskInventory(), 200);
-        if (sourceSlot < 0) sourceSlot = findMiningTool(maid.getMaidInventory(), 0);
+        int sourceSlot = maid.findAvailableInventorySlot(LegacyMiningToolCompat::isMiningTool);
         if (sourceSlot < 0) return false;
         ItemStack replacement = maid.takeOneFromSlot(sourceSlot);
         if (replacement == null) return false;
@@ -68,20 +65,6 @@ final class LegacyTaskEquipUtil {
     static boolean isAttackWeapon(ItemStack stack) {
         return stack != null && stack.getItem().getAttributeModifiers(stack)
                 .containsKey(SharedMonsterAttributes.attackDamage.getAttributeUnlocalizedName());
-    }
-
-    private static int findAttackWeapon(IInventory inventory, int offset) {
-        for (int slot = 0; slot < inventory.getSizeInventory(); slot++) {
-            if (isAttackWeapon(inventory.getStackInSlot(slot))) return offset + slot;
-        }
-        return -1;
-    }
-
-    private static int findMiningTool(IInventory inventory, int offset) {
-        for (int slot = 0; slot < inventory.getSizeInventory(); slot++) {
-            if (LegacyMiningToolCompat.isMiningTool(inventory.getStackInSlot(slot))) return offset + slot;
-        }
-        return -1;
     }
 
     static boolean matches(ItemStack stack, Item... accepted) {

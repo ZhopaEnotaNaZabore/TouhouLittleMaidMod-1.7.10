@@ -8,6 +8,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class TileEntityStatue extends TileEntity {
+    @Override public net.minecraft.util.AxisAlignedBB getRenderBoundingBox() {
+        return net.minecraft.util.AxisAlignedBB.getBoundingBox(xCoord - 5,yCoord - 1,zCoord - 5,xCoord + 5,yCoord + 10,zCoord + 5);
+    }
+
     private int statueSize = 1;
     private boolean coreBlock;
     private int coreX, coreY, coreZ;
@@ -47,6 +51,7 @@ public final class TileEntityStatue extends TileEntity {
 
     @Override public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
+        tag = LegacyTileNbt.data(tag);
         statueSize = Math.max(0, Math.min(3, tag.getInteger("StatueSize")));
         coreBlock = tag.getBoolean("CoreBlock");
         if (tag.hasKey("CoreBlockPos", 10)) {

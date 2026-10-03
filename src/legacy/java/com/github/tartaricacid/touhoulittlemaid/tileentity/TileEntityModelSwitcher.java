@@ -30,7 +30,7 @@ public final class TileEntityModelSwitcher extends TileEntity {
     public List<ModeInfo> getInfoList() { return infoList; }
     public int getIndex() { return index; }
     public boolean isPowered() { return powered; }
-    public void setPowered(boolean value) { powered = value; }
+    public void setPowered(boolean value) { if (powered != value) { powered = value; changed(); } }
     public void cycle(int direction) {
         if (infoList.isEmpty()) return;
         index = (index + direction) % infoList.size(); if (index < 0) index += infoList.size();
@@ -57,6 +57,7 @@ public final class TileEntityModelSwitcher extends TileEntity {
         index = selected; applyCurrent(); changed();
     }
     public void rotateMode(int selected, float degrees) {
+        if (Float.isNaN(degrees) || Float.isInfinite(degrees)) return;
         if (selected < 0 || selected >= infoList.size()) return;
         ModeInfo old = infoList.get(selected);
         float yaw = (old.yaw + degrees) % 360.0F; if (yaw < 0) yaw += 360.0F;
@@ -88,21 +89,24 @@ public final class TileEntityModelSwitcher extends TileEntity {
         maid.prevRenderYawOffset = maid.renderYawOffset = info.yaw;
     }
     @Override public void readFromNBT(NBTTagCompound tag) {
-        super.readFromNBT(tag); readStorage(tag);
+        super.readFromNBT(tag); readStorageData(tag);
+        powered = LegacyTileNbt.data(tag).getBoolean("Powered");
     }
     public void readStorage(NBTTagCompound tag) {
+        readStorageData(tag); powered = false; changed();
+    }
+    private void readStorageData(NBTTagCompound tag) {
         // 1.20 stores custom persistent data below ForgeData; native 1.7 saves it flat.
-        NBTTagCompound data = tag.hasKey("ForgeData", 10) ? tag.getCompoundTag("ForgeData") : tag;
+        NBTTagCompound data = LegacyTileNbt.data(tag);
         entityUuid = readUuid(data, "entity_uuid");
         ownerUuid = readUuid(data, "owner_uuid");
         index = data.getInteger("list_index");
         infoList.clear(); NBTTagList list = data.getTagList("info_list", 10);
         for (int i = 0; i < list.tagCount() && i < 128; i++) infoList.add(ModeInfo.read(list.getCompoundTagAt(i)));
         if (infoList.isEmpty()) index = 0; else index = Math.max(0, Math.min(index, infoList.size() - 1));
-        changed();
     }
     @Override public void writeToNBT(NBTTagCompound tag) {
-        super.writeToNBT(tag); writeStorage(tag);
+        super.writeToNBT(tag); writeStorage(tag); tag.setBoolean("Powered", powered);
     }
     public void writeStorage(NBTTagCompound tag) {
         tag.setString("entity_uuid", entityUuid);tag.setString("owner_uuid",ownerUuid); tag.setInteger("list_index", index);

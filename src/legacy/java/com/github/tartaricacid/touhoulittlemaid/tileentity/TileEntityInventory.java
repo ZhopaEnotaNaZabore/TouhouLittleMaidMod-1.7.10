@@ -25,7 +25,7 @@ public abstract class TileEntityInventory extends TileEntity implements IInvento
     @Override public ItemStack getStackInSlot(int slot) { return items[slot]; }
     @Override public ItemStack decrStackSize(int slot, int amount) {
         ItemStack stack = items[slot];
-        if (stack == null) return null;
+        if (stack == null || amount <= 0) return null;
         if (stack.stackSize <= amount) { items[slot] = null; markDirty(); return stack; }
         ItemStack result = stack.splitStack(amount);
         if (stack.stackSize == 0) items[slot] = null;
@@ -65,12 +65,17 @@ public abstract class TileEntityInventory extends TileEntity implements IInvento
         // client state first or removed items survive locally and TESRs keep
         // rendering them after crafting/extraction.
         java.util.Arrays.fill(items, null);
-        NBTTagList list = tag.getTagList("Items", 10);
+        NBTTagCompound data = LegacyTileNbt.data(tag);
+        NBTTagList list = data.hasKey("Items", 9) ? data.getTagList("Items", 10)
+                : data.getCompoundTag("StorageItem").getTagList("Items", 10);
         for (int i = 0; i < list.tagCount(); i++) {
-            NBTTagCompound item = list.getCompoundTagAt(i);
+            NBTTagCompound item = (NBTTagCompound) list.getCompoundTagAt(i).copy();
             com.github.tartaricacid.touhoulittlemaid.entity.passive.LegacyNbtMigration.normalizeItemStack(item);
             int slot = item.getByte("Slot") & 255;
-            if (slot < items.length) items[slot] = ItemStack.loadItemStackFromNBT(item);
+            if (slot < items.length) {
+                ItemStack stack = ItemStack.loadItemStackFromNBT(item);
+                if (stack != null && stack.stackSize > 0) items[slot] = stack;
+            }
         }
     }
 

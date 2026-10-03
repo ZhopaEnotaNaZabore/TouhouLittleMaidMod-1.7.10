@@ -315,3 +315,4 @@ task.touhou_little_maid.extinguishing=소화 중
 task.touhou_little_maid.board_games=게임
 task.touhou_little_maid.gun_attack=총기
 task.touhou_little_maid.fishing=낚시
+message.touhou_little_maid.altar.not_enough_power=파워가 부족합니다.

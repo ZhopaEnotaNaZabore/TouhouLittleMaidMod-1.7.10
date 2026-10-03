@@ -13,7 +13,7 @@ public final class CombatTargeting {
 
     @SuppressWarnings("unchecked")
     static void updateTarget(EntityMaid maid, double horizontalRange) {
-        if (!maid.canEngageCombat()) {
+        if (!maid.canRunCombatAI()) {
             maid.setAttackTarget(null);
             maid.getNavigator().clearPathEntity();
             return;
@@ -51,7 +51,9 @@ public final class CombatTargeting {
     }
 
     public static boolean isValidTarget(EntityMaid maid, EntityLivingBase target, double range) {
-        return target != null && target.isEntityAlive() && target != maid.getOwner()
+        return target != null && target != maid && target.worldObj == maid.worldObj
+                && target.isEntityAlive() && target != maid.getOwner()
+                && !(target instanceof net.minecraft.entity.player.EntityPlayer && ((net.minecraft.entity.player.EntityPlayer) target).capabilities.disableDamage)
                 && maid.getDistanceSqToEntity(target) <= range * range
                 && maid.isPositionWithinRestriction(target.posX, target.posY, target.posZ)
                 && !maid.isOnSameTeam(target)

@@ -484,3 +484,9 @@ gui.touhou_little_maid.off_hand=Off
 gui.touhou_little_maid.task_configuration=Task configuration
 gui.touhou_little_maid.hidden_item=Hidden item
 gui.touhou_little_maid.profession_tools=Profession tools
+message.touhou_little_maid.altar.not_enough_power=You don't have enough power.
+
+container.touhou_little_maid.tank=Tank backpack
+gui.touhou_little_maid.tank.fill=Into tank
+gui.touhou_little_maid.tank.drain=From tank
+gui.touhou_little_maid.control.backpack_open=Backpack inventory is already open on the right

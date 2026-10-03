@@ -417,6 +417,16 @@ public final class LegacyPortSelfTest {
         excessive.setFloat("Power", 999999); altar.readFromNBT(excessive);
         check(altar.getPower() == com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityAltar.MAX_POWER,
                 "Altar Power NBT was not clamped");
+        net.minecraft.item.ItemStack offering = new net.minecraft.item.ItemStack(Items.diamond, 64);
+        NBTTagCompound offeringData = new NBTTagCompound(); offeringData.setString("Audit", "preserve");
+        offering.setTagCompound(offeringData);
+        altar.setInventorySlotContents(0, offering);
+        altar.setInventorySlotContents(1, new net.minecraft.item.ItemStack(Items.coal));
+        altar.consumeOfferings();
+        check(altar.getStackInSlot(0).stackSize == 63
+                && "preserve".equals(altar.getStackInSlot(0).getTagCompound().getString("Audit"))
+                && altar.getStackInSlot(1) == null && altar.getStackInSlot(2) == null,
+                "Altar crafting lost excess offerings or their NBT");
     }
 
     private static void validateStatueAndGarageStorage() {

@@ -17,6 +17,11 @@ public class TileEntityJoy extends TileEntity {
     private String sitUuid = "";
     private boolean structureChecked;
 
+    @Override public void markDirty() {
+        super.markDirty();
+        if (worldObj != null && !worldObj.isRemote) worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+    }
+
     @Override public void updateEntity() {
         if (!structureChecked && worldObj != null && !worldObj.isRemote) {
             structureChecked = true;
@@ -31,7 +36,7 @@ public class TileEntityJoy extends TileEntity {
         if (worldObj != null && worldObj.getBlock(xCoord,yCoord,zCoord)
                 instanceof com.github.tartaricacid.touhoulittlemaid.block.BlockBoardGame)
             return AxisAlignedBB.getBoundingBox(xCoord-1,yCoord,zCoord-1,xCoord+2,yCoord+2,zCoord+2);
-        return super.getRenderBoundingBox();
+        return AxisAlignedBB.getBoundingBox(xCoord-2,yCoord,zCoord-2,xCoord+2,yCoord+1,zCoord+2);
     }
 
     public EntitySit getSitEntity() {
@@ -52,6 +57,7 @@ public class TileEntityJoy extends TileEntity {
     }
 
     public void removeSitEntity() {
+        if (worldObj != null && worldObj.isRemote) return;
         EntitySit sit = getSitEntity();
         if (sit != null) setDeadSafely(sit);
         sitUuid = "";
@@ -66,6 +72,7 @@ public class TileEntityJoy extends TileEntity {
     @Override
     public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
+        tag = LegacyTileNbt.data(tag);
         if (tag.hasKey("SitId", 8)) sitUuid = normalizeUuid(tag.getString("SitId"));
         else if (tag.hasKey("SitId", 11)) {
             int[] value = tag.getIntArray("SitId");

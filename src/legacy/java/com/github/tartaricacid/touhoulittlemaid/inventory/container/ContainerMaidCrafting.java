@@ -13,7 +13,7 @@ public final class ContainerMaidCrafting extends ContainerWorkbench {
         this.maid = maid;
     }
     @Override public boolean canInteractWith(EntityPlayer player) {
-        return maid.isEntityAlive() && maid.getOwner() == player && maid.getDistanceSqToEntity(player) < 64
+        return maid.isEntityAlive() && maid.worldObj == player.worldObj && maid.getOwner() == player && maid.getDistanceSqToEntity(player) < 64
                 && "crafting_table_backpack".equals(maid.getBackpackType());
     }
 }

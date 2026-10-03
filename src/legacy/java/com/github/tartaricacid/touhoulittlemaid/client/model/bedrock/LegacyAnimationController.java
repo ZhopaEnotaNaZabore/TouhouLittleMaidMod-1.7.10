@@ -1,201 +1,87 @@
 package com.github.tartaricacid.touhoulittlemaid.client.model.bedrock;
 
+import com.github.tartaricacid.touhoulittlemaid.client.model.bedrock.animation.LegacyAnimationFrame;
+import com.github.tartaricacid.touhoulittlemaid.entity.animation.MaidActionState;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import com.github.tartaricacid.touhoulittlemaid.entity.item.EntitySit;
+import com.github.tartaricacid.touhoulittlemaid.init.ModItems;
 import net.minecraft.entity.Entity;
-import net.minecraft.util.MathHelper;
+import net.minecraft.entity.item.EntityBoat;
+import net.minecraft.item.*;
+import net.minecraft.init.Items;
 
-/** Source-aligned state controller for common Bedrock/Gecko maid bones. */
+/** Converts synchronized entity state to frame inputs; the model owns its effective animation profile. */
 public final class LegacyAnimationController {
-    private static final String ANIMATION_ROOT = "touhou_little_maid:animation/maid/default/";
-    private static final String[] TASK_NAMES = {"attack", "danmaku_attack", "farm", "feed_animal", "idle",
-            "milk", "shears", "sugar_cane", "cocoa", "extinguishing", "feed", "grass", "melon",
-            "ranged_attack", "snow", "torch"};
-    private static final String[] TASK_BONES = {"attack", "danmakuAttack", "farm", "feedAnimal", "idle",
-            "milk", "shears", "sugarCane", "cocoa", "extinguishing", "feed", "grass", "melon",
-            "rangedAttack", "snow", "torch"};
-    private static final String[] ARMOR_BONES = {"helmet", "chestPlate", "chestPlateLeft", "chestPlateMiddle",
-            "chestPlateRight", "leggings", "leggingsLeft", "leggingsMiddle", "leggingsRight", "bootsLeft",
-            "bootsRight"};
     private LegacyAnimationController() { }
-
-    public static void apply(LegacyBedrockModel model, Entity entity, float age, float swingProgress) {
-        float slow = MathHelper.sin(age * 0.05F);
-        model.addRotation("armLeft", 0, 0, slow * 0.05F);
-        model.addRotation("armRight", 0, 0, -slow * 0.05F);
-        model.addRotation("LeftArm", 0, 0, slow * 0.05F);
-        model.addRotation("RightArm", 0, 0, -slow * 0.05F);
-        model.addRotation("hairPonytailSwing", 0, 0, slow * 0.06F);
-        model.addRotation("hairLeftSwing", 0, 0, slow * 0.04F);
-        model.addRotation("hairRightSwing", 0, 0, -slow * 0.04F);
-        model.addRotation("tail", MathHelper.sin(age * 0.2F) * 0.05F, 0,
-                MathHelper.cos(age * 0.2F) * 0.1F);
-        model.addRotation("wingLeft", 0, -MathHelper.cos(age * 0.3F) * 0.2F, 0);
-        model.addRotation("wingRight", 0, MathHelper.cos(age * 0.3F) * 0.2F, 0);
-        model.addOffset("sinFloat", 0, MathHelper.sin(age * 0.08F) * 0.35F, 0);
-
-        if (swingProgress > 0) {
-            float eased = 1.0F - (float) Math.pow(1.0F - swingProgress, 4);
-            float swing = MathHelper.sin(eased * (float) Math.PI);
-            float returnSwing = MathHelper.sin(swingProgress * (float) Math.PI) * -0.525F;
-            model.addRotation("armRight", -(swing * 1.2F + returnSwing), 0,
-                    MathHelper.sin(swingProgress * (float) Math.PI) * -0.4F);
-            model.addRotation("RightArm", -(swing * 1.2F + returnSwing), 0,
-                    MathHelper.sin(swingProgress * (float) Math.PI) * -0.4F);
-        }
-
-        if (!(entity instanceof EntityMaid)) return;
+    public static LegacyAnimationFrame frame(Entity entity, float limbSwing, float amount, float age,
+                                               float yaw, float pitch, float vanillaSwing) {
+        LegacyAnimationFrame f = new LegacyAnimationFrame();
+        f.limbSwing = limbSwing; f.limbAmount = amount; f.age = age; f.yaw = yaw; f.pitch = pitch;
+        if (!(entity instanceof EntityMaid)) return f;
         EntityMaid maid = (EntityMaid) entity;
-        LegacyMaidModelRegistry.Entry modelEntry = LegacyMaidModelRegistry.INSTANCE.getEntry(maid.getModelId());
-        boolean sleeping = maid.isMaidSleeping();
-        boolean sitting = maid.isSitting() || maid.ridingEntity != null;
-
-        if (sitting && uses(modelEntry, "sit/default.js", true)) {
-            model.setBaseRotation("legLeft", -1.134F, 0, -0.262F);
-            model.setBaseRotation("legRight", -1.134F, 0, 0.262F);
-            model.setBaseRotation("armLeft", -0.798F, 0, 0.274F);
-            model.setBaseRotation("armRight", -0.798F, 0, -0.274F);
-            model.setBaseRotation("LeftLeg", -1.134F, 0, -0.262F);
-            model.setBaseRotation("RightLeg", -1.134F, 0, 0.262F);
-            model.setBaseRotation("LeftArm", -0.798F, 0, 0.274F);
-            model.setBaseRotation("RightArm", -0.798F, 0, -0.274F);
+        float time = maid.ticksExisted + Math.max(0, Math.min(1, age - maid.ticksExisted));
+        MaidActionState action = maid.getActionState();
+        f.sleeping = maid.isMaidSleeping(); f.sitting = maid.isSitting();
+        f.riding = maid.ridingEntity != null && !f.sleeping;
+        f.carried = maid.ridingEntity instanceof net.minecraft.entity.player.EntityPlayer;
+        f.boat = maid.ridingEntity instanceof EntityBoat; f.begging = maid.isBegging();
+        f.fishing = maid.hasFishingHook(); f.uuidSeed = maid.getUniqueID().getLeastSignificantBits(); f.dimension = maid.dimension;
+        f.healthRatio = maid.getMaxHealth() <= 0 ? 1 : maid.getHealth() / maid.getMaxHealth();
+        f.health=maid.getHealth();f.maxHealth=maid.getMaxHealth();
+        f.foodLevel=maid.getHunger()/5F;f.sneaking=maid.isSneaking();f.wet=maid.isWet();f.bodyYaw=maid.renderYawOffset;
+        f.position[0]=maid.posX;f.position[1]=maid.posY;f.position[2]=maid.posZ;
+        float partial=Math.max(0,Math.min(1,age-maid.ticksExisted));
+        f.positionDelta[0]=(maid.posX-maid.prevPosX)*partial;
+        f.positionDelta[1]=(maid.posY-maid.prevPosY)*partial;
+        f.positionDelta[2]=(maid.posZ-maid.prevPosZ)*partial;
+        if(Math.hypot(f.positionDelta[0],f.positionDelta[2])>=.0001){
+            double angle=Math.atan2(f.positionDelta[2],f.positionDelta[0])-Math.toRadians(90+maid.prevRotationYaw+(maid.rotationYaw-maid.prevRotationYaw)*partial);
+            f.inputVertical=(float)Math.cos(angle);f.inputHorizontal=(float)Math.sin(angle);
         }
-        if (sitting && uses(modelEntry, "sit/skirt_rotation.js", true))
-            model.setBaseRotation("sittingRotationSkirt", -0.567F, 0, 0);
-        if (sitting && uses(modelEntry, "sit/skirt_rotation_swing.js", false))
-            model.setBaseRotation("sittingRotationSwingSkirt", -0.567F, 0, 0);
-
-        if (uses(modelEntry, "head/beg.js", true)) {
-            if (maid.isBegging()) { model.addRotation("head", 0, 0, 0.139F); model.addRotation("Head", 0, 0, 0.139F); }
-            model.setVisible("begShow", maid.isBegging());
+        f.hurt = maid.hurtTime > 0; f.dead = !maid.isEntityAlive(); f.sprinting = maid.isSprinting();
+        f.water = maid.isInWater(); f.climbing = maid.isOnLadder(); f.verticalSpeed = (float) maid.motionY; f.onGround = maid.onGround;
+        f.groundSpeed = (float) (20 * Math.sqrt(maid.motionX * maid.motionX + maid.motionZ * maid.motionZ));
+        f.verticalDisplacement = (float) (maid.posY - maid.prevPosY);
+        f.yawSpeed = 20 * (maid.rotationYaw - maid.prevRotationYaw);
+        f.task = maid.getTaskId().substring(maid.getTaskId().indexOf(':') + 1);
+        if (maid.ridingEntity instanceof EntitySit) {
+            f.joy = ((EntitySit) maid.ridingEntity).getJoyType().toLowerCase(java.util.Locale.ROOT);
+            if (f.joy.startsWith("on")) f.joy = f.joy.substring(2);
+            if ("homemeal".equals(f.joy)) f.joy = "picnic";
         }
-        if (sleeping && uses(modelEntry, "head/default.js", true)) {
-            model.setBaseRotation("head", (float) Math.toRadians(15), 0, 0);
-            model.setBaseRotation("Head", (float) Math.toRadians(15), 0, 0);
+        f.use = action.kind(time); f.useLeft = action.useLeft(); f.useTicks = action.useElapsed(time); f.useSequence = action.useSequence();
+        f.ranged = action.isRanged() && action.using(time);
+        f.swing = action.swingProgress(time); f.swingLeft = action.swingLeft();
+        // Initial vanilla swing remains usable before the first action snapshot arrives.
+        if (action.swingSequence() == 0) { f.swing = vanillaSwing; f.swingLeft = false; }
+        f.swingSequence = action.swingSequence(); f.swingTicks = action.swingSequence() == 0 ? f.swing * 6 : action.swingElapsed(time);
+        f.cancelSwing = !action.hasSwingEvent() && f.swing <= 0;
+        if (f.sleeping || f.dead || "honey".equals(f.task) || "crossbow_attack".equals(f.task) || "trident_attack".equals(f.task)) {
+            f.actionsDisabled = true; f.use = ""; f.swing = 0; f.ranged = false;
         }
-
-        long blinkSeed = Math.abs(maid.getUniqueID().getLeastSignificantBits()) % 10L;
-        float blinkTime = (age + blinkSeed) % 60.0F;
-        boolean blink = sleeping || (55.0F < blinkTime && blinkTime < 60.0F);
-        if (uses(modelEntry, "head/blink.js", true)) {
-            model.setVisible("blink", blink);
-            model.setVisible("blink2", blink);
-            model.setVisible("Blink", blink);
-            model.setVisible("Blink2", blink);
-        }
-        if (uses(modelEntry, "head/default.js", true)) model.setVisible("hat", !sleeping);
-        if (uses(modelEntry, "wing/default.js", true)) {
-            model.setVisible("wingLeft", !sleeping);
-            model.setVisible("wingRight", !sleeping);
-        }
-        if (uses(modelEntry, "tail/default.js", true)) model.setVisible("tail", !sleeping);
-        if (uses(modelEntry, "sleep/default.js", false)) {
-            model.setVisible("sleepHide", !sleeping);
-            model.setVisible("sleepShow", sleeping);
-        }
-
-        if (uses(modelEntry, "sit/skirt_hidden.js", false)) {
-            model.setVisible("sittingHiddenSkirt", !sitting);
-            model.setVisible("_sittingHiddenSkirt", sitting);
-        }
-
-        boolean hasBackpack = !"empty".equals(maid.getBackpackType());
-        if (uses(modelEntry, "status/backpack.js", false)) {
-            model.setVisible("backpackShow", hasBackpack);
-            model.setVisible("backpackHidden", !hasBackpack);
-        }
-
-        applyTaskVisibility(model, maid, modelEntry);
-        applyArmorVisibility(model, maid, modelEntry);
-        applyHecatiaVisibility(model, maid, modelEntry);
-        if (uses(modelEntry, "health/less_show.js", false)) {
-            float healthRatio = maid.getMaxHealth() <= 0 ? 1.0F : maid.getHealth() / maid.getMaxHealth();
-            model.setVisible("healthLessQuarterShow", healthRatio <= 0.25F);
-            model.setVisible("healthLessHalfShow", healthRatio <= 0.5F);
-            model.setVisible("healthLessThreeQuartersShow", healthRatio <= 0.75F);
-        }
-
-        // Exact steady fishing pose from hold_mainhand:fishing. Unlike the
-        // one-tick swing this remains active for the complete hook lifetime.
-        if (maid.hasFishingHook()) {
-            setFishingRotation(model, "armLeft", -56.72671F, 19.95595F, 11.62581F);
-            setFishingRotation(model, "armRight", -54.68870F, -15.93333F, -15.34595F);
-            setFishingRotation(model, "LeftArm", -56.72671F, 19.95595F, 11.62581F);
-            setFishingRotation(model, "RightArm", -54.68870F, -15.93333F, -15.34595F);
-            setFishingRotation(model, "LeftForeArm", -17.5F, 0, 0);
-            setFishingRotation(model, "RightForeArm", -20.0F, 0, 0);
-            setFishingRotation(model, "LeftHandLocator", 42.5F, 0, 0);
-            setFishingRotation(model, "RightHandLocator", 42.5F, 0, 0);
-            setFishingRotation(model, "Arms", 0, 30.0F, 0);
-            setFishingRotation(model, "Arm", 0, 30.0F, 0);
-        }
+        ItemStack main = maid.getHeldItem(), off = maid.getOffhandItem(), shown = action.displayItem(time);
+        if (f.using() && shown != null) { if (f.useLeft) off = shown; else main = shown; }
+        f.mainId = id(main); f.offId = id(off); f.mainCategory = category(main); f.offCategory = category(off);
+        f.backpack = !"empty".equals(maid.getBackpackType());
+        f.helmet = maid.getEquipmentInSlot(4) != null; f.chest = maid.getEquipmentInSlot(3) != null;
+        f.leggings = maid.getEquipmentInSlot(2) != null; f.boots = maid.getEquipmentInSlot(1) != null;
+        if (f.sleeping || f.sitting || f.riding) f.limbAmount = 0;
+        return f;
     }
-
-    private static void applyTaskVisibility(LegacyBedrockModel model, EntityMaid maid,
-                                            LegacyMaidModelRegistry.Entry entry) {
-        String taskId = maid.getTaskId();
-        for (int i = 0; i < TASK_NAMES.length; i++) {
-            if (!uses(entry, "task/" + TASK_NAMES[i] + ".js", false)) continue;
-            boolean active = taskId.endsWith(":" + TASK_NAMES[i]);
-            model.setVisible(TASK_BONES[i] + "Hidden", !active);
-            model.setVisible(TASK_BONES[i] + "Show", active);
-        }
-    }
-
-    private static void applyArmorVisibility(LegacyBedrockModel model, EntityMaid maid,
-                                             LegacyMaidModelRegistry.Entry entry) {
-        boolean armorDefault = uses(entry, "armor/default.js", true);
-        boolean armorReverse = uses(entry, "armor/reverse.js", true);
-        if (!armorDefault && !armorReverse) return;
-        boolean[] equipped = {maid.getEquipmentInSlot(4) != null,
-                maid.getEquipmentInSlot(3) != null, maid.getEquipmentInSlot(3) != null,
-                maid.getEquipmentInSlot(3) != null, maid.getEquipmentInSlot(3) != null,
-                maid.getEquipmentInSlot(2) != null, maid.getEquipmentInSlot(2) != null,
-                maid.getEquipmentInSlot(2) != null, maid.getEquipmentInSlot(2) != null,
-                maid.getEquipmentInSlot(1) != null, maid.getEquipmentInSlot(1) != null};
-        for (int i = 0; i < ARMOR_BONES.length; i++) {
-            if (armorDefault) model.setVisible(ARMOR_BONES[i], equipped[i]);
-            if (armorReverse) model.setVisible("_" + ARMOR_BONES[i], !equipped[i]);
-        }
-    }
-
-    /** Exact mutually-exclusive head/body layers used by Hecatia in the source animation. */
-    private static void applyHecatiaVisibility(LegacyBedrockModel model, EntityMaid maid,
-                                               LegacyMaidModelRegistry.Entry entry) {
-        if (!uses(entry, "touhou_little_maid:animation/special/hecatia_dimension.js", false)) return;
-        int dimension = maid.dimension;
-        boolean earth = dimension == 0;
-        boolean moon = dimension == 1;
-        boolean other = !earth && !moon;
-        boolean helmet = maid.getEquipmentInSlot(4) != null;
-
-        model.setVisible("earthHair", earth);
-        model.setVisible("logoEarth", earth);
-        model.setVisible("earthTop", earth && !helmet);
-        model.setVisible("earthSideLeft", !earth);
-        model.setVisible("earthSideRight", false);
-
-        model.setVisible("moonHair", moon);
-        model.setVisible("logoMoon", moon);
-        model.setVisible("moonTop", moon && !helmet);
-        model.setVisible("moonSideLeft", false);
-        model.setVisible("moonSideRight", !moon);
-
-        model.setVisible("otherHair", other);
-        model.setVisible("logoOther", other);
-        model.setVisible("otherTop", other && !helmet);
-        model.setVisible("otherSideLeft", earth);
-        model.setVisible("otherSideRight", moon);
-    }
-
-    private static boolean uses(LegacyMaidModelRegistry.Entry entry, String relativePath,
-                                boolean partOfDefaultSet) {
-        String path = relativePath.indexOf(':') >= 0 ? relativePath : ANIMATION_ROOT + relativePath;
-        return entry == null || entry.usesAnimation(path, partOfDefaultSet);
-    }
-
-    private static void setFishingRotation(LegacyBedrockModel model, String bone,
-                                           float x, float y, float z) {
-        float toRadians = (float) Math.PI / 180.0F;
-        model.setBaseRotation(bone, x * toRadians, y * toRadians, z * toRadians);
+    private static String id(ItemStack stack) { return stack == null ? "" : String.valueOf(Item.itemRegistry.getNameForObject(stack.getItem())); }
+    private static String category(ItemStack stack) {
+        if (stack == null) return "";
+        Item item = stack.getItem();
+        if (item == Items.bow) return "bow";
+        if (item == ModItems.HAKUREI_GOHEI || item == ModItems.SANAE_GOHEI) return "gohei";
+        if (item instanceof ItemSword) return "sword";
+        if (item instanceof ItemAxe) return "axe";
+        if (item instanceof ItemPickaxe) return "pickaxe";
+        if (item instanceof ItemSpade) return "shovel";
+        if (item instanceof ItemHoe) return "hoe";
+        if (stack.getItemUseAction() == EnumAction.eat) return "eat";
+        if (stack.getItemUseAction() == EnumAction.drink) return "drink";
+        if (stack.getItemUseAction() == EnumAction.block) return "block";
+        return "";
     }
 }

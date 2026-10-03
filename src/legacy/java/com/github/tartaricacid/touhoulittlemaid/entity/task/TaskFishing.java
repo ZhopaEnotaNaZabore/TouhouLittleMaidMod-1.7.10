@@ -31,12 +31,13 @@ public final class TaskFishing implements IMaidTask {
             return;
         }
 
-        ensureFishingSeat(maid, spot);
+        if (!ensureFishingSeat(maid, spot)) return;
 
-        maid.worldObj.spawnEntityInWorld(new EntityMaidFishingHook(maid.worldObj, maid,
+        EntityMaidFishingHook hook = new EntityMaidFishingHook(maid.worldObj, maid,
                 EntityMaidFishingHook.EQUIPPED_ROD_SLOT,
-                spot.waterX + 0.5D, spot.waterY + 0.85D, spot.waterZ + 0.5D));
-        maid.swingItem();
+                spot.waterX + 0.5D, spot.waterY + 0.85D, spot.waterZ + 0.5D);
+        if (maid.worldObj.spawnEntityInWorld(hook)) maid.swingItem();
+        else hook.setDead(); // Undo the constructor's synchronized fishing flag.
     }
 
     @Override
@@ -53,16 +54,18 @@ public final class TaskFishing implements IMaidTask {
         maid.setFishingHookActive(false);
     }
 
-    private void ensureFishingSeat(EntityMaid maid, FishingSpot spot) {
-        if (maid.ridingEntity != null) return;
+    private boolean ensureFishingSeat(EntityMaid maid, FishingSpot spot) {
+        if (maid.ridingEntity != null) return maid.ridingEntity instanceof EntitySit
+                && "fishing".equals(((EntitySit)maid.ridingEntity).getJoyType());
         EntitySit seat = new EntitySit(maid.worldObj, spot.standX + 0.5D, spot.standY + 0.25D,
                 spot.standZ + 0.5D, "fishing", spot.standX, spot.standY, spot.standZ);
         double dx = spot.waterX + 0.5D - seat.posX;
         double dz = spot.waterZ + 0.5D - seat.posZ;
         seat.rotationYaw = (float) (Math.atan2(dz, dx) * 180.0D / Math.PI) - 90.0F;
-        maid.worldObj.spawnEntityInWorld(seat);
+        if (!maid.worldObj.spawnEntityInWorld(seat)) return false;
         maid.mountEntity(seat);
         maid.getNavigator().clearPathEntity();
+        return true;
     }
 
     private boolean ensureMainhandFishingRod(EntityMaid maid) {

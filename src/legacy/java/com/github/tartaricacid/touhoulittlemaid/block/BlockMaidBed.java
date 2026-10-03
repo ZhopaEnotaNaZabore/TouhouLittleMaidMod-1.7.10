@@ -78,7 +78,8 @@ public final class BlockMaidBed extends BlockContainer {
         if (tile instanceof TileEntityMaidBed) {
             int modernColor=15-(held.getItemDamage()&15);
             if(!isAvailableColor(modernColor))return false;
-            if (!world.isRemote) ((TileEntityMaidBed) tile).setColor(modernColor);
+            if (world.isRemote) return true;
+            ((TileEntityMaidBed) tile).setColor(modernColor);
             if (!player.capabilities.isCreativeMode && --held.stackSize <= 0) {
                 player.inventory.setInventorySlotContents(player.inventory.currentItem, null);
             }
@@ -102,12 +103,13 @@ public final class BlockMaidBed extends BlockContainer {
         int color = 6;
         TileEntity tile = head ? world.getTileEntity(x, y, z) : world.getTileEntity(otherX, y, otherZ);
         if (tile instanceof TileEntityMaidBed) color = ((TileEntityMaidBed) tile).getColor();
-        if (!world.isRemote && !head) {
+        if (!world.isRemote) {
             ItemStack drop = new ItemStack(Item.getItemFromBlock(this));
             NBTTagCompound tag = new NBTTagCompound(); tag.setInteger("BedColor", color);tag.setBoolean("ModernBedColor",true); drop.setTagCompound(tag);
             world.spawnEntityInWorld(new EntityItem(world, x + 0.5D, y + 0.5D, z + 0.5D, drop));
         }
-        if (world.getBlock(otherX, y, otherZ) == this) {
+        if (!world.isRemote && world.getBlock(otherX, y, otherZ) == this
+                && world.getBlockMetadata(otherX, y, otherZ) == (meta ^ 8)) {
             removingOtherHalf = true;
             try { world.setBlockToAir(otherX, y, otherZ); }
             finally { removingOtherHalf = false; }

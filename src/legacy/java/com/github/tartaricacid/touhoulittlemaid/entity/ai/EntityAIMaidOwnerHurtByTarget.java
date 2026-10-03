@@ -25,7 +25,7 @@ public final class EntityAIMaidOwnerHurtByTarget extends EntityAIOwnerHurtByTarg
     }
 
     private boolean canRespond() {
-        return TaskManager.isCombatTask(maid.getTaskId()) && maid.canEngageCombat()
+        return TaskManager.isCombatTask(maid.getTaskId()) && maid.canRunCombatAI()
                 && !maid.isSitting() && maid.isWorkingNow();
     }
 }

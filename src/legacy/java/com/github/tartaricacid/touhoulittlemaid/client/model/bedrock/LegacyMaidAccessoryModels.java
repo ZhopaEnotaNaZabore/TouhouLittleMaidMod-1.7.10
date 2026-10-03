@@ -31,15 +31,26 @@ public final class LegacyMaidAccessoryModels implements IResourceManagerReloadLi
         try {
             GL11.glColor4f(1, 1, 1, 1);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
-            GL11.glScalef(1.01F, 1.01F, 1.01F);
-            if (maidModel == null || !maidModel.applyBackpackPositioning())
-                GL11.glTranslatef(0.0F, -0.5F, 0.25F);
+            if (!postRenderBackpack(maidModel)) return;
             Minecraft.getMinecraft().getTextureManager().bindTexture(texture(name));
-            model.render(maid, 0, 0, maid.ticksExisted + partialTicks, 0, 0, 0.0625F);
+            model.renderStatic(.0625F,null,null);
         } finally {
             GL11.glPopMatrix();
             GL11.glPopAttrib();
         }
+    }
+
+    /** Shares the attachment transform with the optional offscreen visual probe. */
+    public static boolean postRenderBackpack(LegacyBedrockModel maidModel) {
+        if (maidModel != null && maidModel.isGecko()) {
+            if (!maidModel.postRenderBone("BackpackLocator", .0625F)) return false;
+            // Convert legacy locator basis to Gecko, then use the SRC layer transform.
+            GL11.glRotatef(180,0,0,1);GL11.glTranslatef(0,1,.25F);GL11.glRotatef(180,0,0,1);
+        } else {
+            GL11.glScalef(1.01F,1.01F,1.01F);
+            if (maidModel == null || !maidModel.applyBackpackPositioning()) GL11.glTranslatef(0,-.5F,.25F);
+        }
+        return true;
     }
 
     private LegacyBedrockModel get(String name) {

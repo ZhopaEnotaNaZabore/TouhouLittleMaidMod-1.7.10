@@ -76,7 +76,9 @@ import java.util.ArrayList;
  * lets individual subsystems be ported without changing their persisted data
  * contract and makes later data migration predictable.
  */
-public class EntityMaid extends EntityTameable implements IRangedAttackMob {
+public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.mods.fml.common.registry.IEntityAdditionalSpawnData {
+    private final com.github.tartaricacid.touhoulittlemaid.entity.animation.MaidActionState actionState =
+            new com.github.tartaricacid.touhoulittlemaid.entity.animation.MaidActionState();
     private static long profileSamples, profileNanos, profileMaxNanos;
     public static final String MODEL_ID_TAG = "ModelId";
     public static final String SOUND_PACK_ID_TAG = "SoundPackId";
@@ -125,8 +127,13 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     private final SchedulePos schedulePos = new SchedulePos();
     private final FavorabilityManager favorabilityManager = new FavorabilityManager(this);
     private String backpackType = "empty";
+    private final com.github.tartaricacid.touhoulittlemaid.inventory.MaidFurnaceInventory furnaceInventory = new com.github.tartaricacid.touhoulittlemaid.inventory.MaidFurnaceInventory(this);
+    public com.github.tartaricacid.touhoulittlemaid.inventory.MaidFurnaceInventory getFurnaceInventory(){return furnaceInventory;}
     private int gomokuWins;
     private String backpackFluid="";
+    private final com.github.tartaricacid.touhoulittlemaid.inventory.MaidTankInventory tankInventory=new com.github.tartaricacid.touhoulittlemaid.inventory.MaidTankInventory(this);
+    public com.github.tartaricacid.touhoulittlemaid.inventory.MaidTankInventory getTankInventory(){return tankInventory;}
+    public void setBackpackFluidState(String fluid,int amount){backpackFluidAmount=MathHelper.clamp_int(amount,0,BACKPACK_TANK_CAPACITY);backpackFluid=backpackFluidAmount==0?"":normalizeFluidId(fluid);}
     private int backpackFluidAmount;
     private static final int BACKPACK_TANK_CAPACITY = 10000;
     private final List<String> aiChatRoles = new ArrayList<String>();
@@ -151,8 +158,15 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         tasks.addTask(3, new EntityAIMaidFollowOwner(this, 1.0D, 4.0F, 2.0F));
         tasks.addTask(4, new EntityAIMaidMeleeAttack(this));
         tasks.addTask(4, new EntityAIMaidRangedAttack(this));
-        tasks.addTask(8, new EntityAIWander(this, 0.6D));
-        tasks.addTask(7, new EntityAITempt(this, 0.8D, Items.cake, false));
+        tasks.addTask(4, new EntityAIMaidRangedAttack(this, TaskManager.DANMAKU_ATTACK_ID));
+        tasks.addTask(8, new EntityAIWander(this, 0.6D) {
+            @Override public boolean shouldExecute(){return canRunIdleMovement()&&super.shouldExecute();}
+            @Override public boolean continueExecuting(){return canRunIdleMovement()&&super.continueExecuting();}
+        });
+        tasks.addTask(7, new EntityAITempt(this, 0.8D, Items.cake, false) {
+            @Override public boolean shouldExecute(){return canRunIdleMovement()&&super.shouldExecute();}
+            @Override public boolean continueExecuting(){return canRunIdleMovement()&&super.continueExecuting();}
+        });
         tasks.addTask(9, new EntityAIWatchClosest(this, EntityPlayer.class, 6.0F));
         tasks.addTask(10, new EntityAILookIdle(this));
         targetTasks.addTask(1, new EntityAIMaidOwnerHurtByTarget(this));
@@ -198,7 +212,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         // AI goals run inside super.onLivingUpdate(). Clear combat state first
         // so a maid already below the retreat threshold cannot land one more
         // melee/ranged attack before its profession tick notices the health.
-        if (!worldObj.isRemote && !canEngageCombat() && getAttackTarget() != null) {
+        if (!worldObj.isRemote) updateScheduleActivity();
+        if (!worldObj.isRemote && !canRunCombatAI() && getAttackTarget() != null) {
             setAttackTarget(null);
             getNavigator().clearPathEntity();
         }
@@ -209,12 +224,12 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         }
         long profileStarted = System.nanoTime();
 
-        updateScheduleActivity();
         syncEquipmentSlots();
         favorabilityManager.tick();
         tickSpecialBackpack();
         if(isPeriodicTick(20))tickWirelessIO();
-        if (getCurrentActivity() == MaidActivity.WORK) {
+        if (getCurrentActivity() == MaidActivity.WORK && !isSitting() && !isMaidSleeping()
+                && (!isHomeMode() || schedulePos.getDimension() == dimension)) {
             TaskManager.get(taskId).tick(this);
         } else if (getAttackTarget() != null) {
             setAttackTarget(null);
@@ -222,6 +237,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         schedulePos.tick(this);
         updateHungerAndHealing();
         tickHomeBehaviors();
+        tickActionPresentation();
         tickFenceGate();
         if (isCollidedHorizontally && !onGround && !isSitting() && getNavigator().getPath() != null) motionY = Math.max(motionY, 0.2D);
         if (isTamed() && isPickupEnabled() && !isSitting() && ticksExisted % 5 == 0) {
@@ -232,6 +248,91 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
                 && !isRiding() && !getLeashed()) followOwnerFallback();
         if (isTamed()) tickMaidVoice();
         long elapsed=System.nanoTime()-profileStarted;profileSamples++;profileNanos+=elapsed;if(elapsed>profileMaxNanos)profileMaxNanos=elapsed;
+    }
+
+    public com.github.tartaricacid.touhoulittlemaid.entity.animation.MaidActionState getActionState() { return actionState; }
+
+    public void writeSpawnData(io.netty.buffer.ByteBuf buffer) {
+        // Forge 1.7.10 synchronizes numeric entity IDs, but not UUIDs.
+        buffer.writeLong(getUniqueID().getMostSignificantBits());
+        buffer.writeLong(getUniqueID().getLeastSignificantBits());
+        cpw.mods.fml.common.network.ByteBufUtils.writeTag(buffer, actionState.snapshot(ticksExisted));
+    }
+    public void readSpawnData(io.netty.buffer.ByteBuf buffer) {
+        entityUniqueID = new java.util.UUID(buffer.readLong(), buffer.readLong());
+        actionState.accept(cpw.mods.fml.common.network.ByteBufUtils.readTag(buffer), ticksExisted);
+    }
+    private void syncActionPresentation() {
+        if (worldObj == null || worldObj.isRemote || com.github.tartaricacid.touhoulittlemaid.network.NetworkHandler.channel == null) return;
+        com.github.tartaricacid.touhoulittlemaid.network.NetworkHandler.channel.sendToAllAround(
+                new com.github.tartaricacid.touhoulittlemaid.network.message.MessageMaidAction(this),
+                new cpw.mods.fml.common.network.NetworkRegistry.TargetPoint(dimension, posX, posY, posZ, 128));
+    }
+    private int visualSwingDuration() {
+        if (isPotionActive(Potion.digSpeed)) return Math.max(1, 6 - (1 + getActivePotionEffect(Potion.digSpeed).getAmplifier()));
+        if (isPotionActive(Potion.digSlowdown)) return 6 + (1 + getActivePotionEffect(Potion.digSlowdown).getAmplifier()) * 2;
+        return 6;
+    }
+    @Override
+    @cpw.mods.fml.relauncher.SideOnly(cpw.mods.fml.relauncher.Side.CLIENT)
+    public net.minecraft.util.IIcon getItemIcon(ItemStack stack, int pass) {
+        if (stack.getItem() == Items.bow) {
+            int stage=actionState.bowPullStage(ticksExisted,
+                    com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyMaidItemContext.isLeft());
+            if(stage>=0)return Items.bow.getItemIconForUseDuration(stage);
+        }
+        return super.getItemIcon(stack,pass);
+    }
+    @Override public void swingItem() {
+        // Preserve Forge's held-item onEntitySwing hook and vanilla animation packet.
+        int previousProgress = swingProgressInt;
+        boolean previouslySwinging = isSwingInProgress;
+        super.swingItem();
+        if (!worldObj.isRemote && isSwingInProgress && swingProgressInt == -1
+                && (!previouslySwinging || previousProgress != -1)) {
+            actionState.swing(false, visualSwingDuration(), ticksExisted);
+            syncActionPresentation();
+        }
+    }
+    public void swingOffhand() {
+        if (worldObj.isRemote) return;
+        ItemStack item = getOffhandItem();
+        if (item != null && item.getItem().onEntitySwing(this, item)) return;
+        actionState.swing(true, visualSwingDuration(), ticksExisted);
+        syncActionPresentation();
+    }
+    /** Presentation only: callers retain their original inventory/consumption transaction. */
+    public void beginUsePresentation(ItemStack item, boolean left, String kind, int duration) {
+        if (worldObj.isRemote || item == null || isMaidSleeping()) return;
+        actionState.beginUse(item, left, kind, duration, false, ticksExisted);
+        syncActionPresentation();
+    }
+    public void updateRangedPresentation(boolean aiming) {
+        if (worldObj.isRemote) return;
+        ItemStack item = getHeldItem();
+        String kind = item != null && item.getItem() == Items.bow ? "bow" : "gohei";
+        boolean valid = aiming && canEngageCombat() && hasRangedWeaponForCurrentTask() && !isMaidSleeping() && !isSitting();
+        if (valid && (!actionState.using(ticksExisted) || actionState.isRanged())) {
+            ItemStack shown = actionState.displayItem(ticksExisted);
+            if (!actionState.using(ticksExisted) || !kind.equals(actionState.kind(ticksExisted))
+                    || shown == null || shown.getItem() != item.getItem()) {
+                actionState.beginUse(item, false, kind, 72000, true, ticksExisted);
+                syncActionPresentation();
+            }
+        } else if (!valid && actionState.isRanged() && actionState.stopUse()) syncActionPresentation();
+    }
+    private void rangedPresentationReleased() {
+        if (actionState.isRanged() && actionState.stopUse()) syncActionPresentation();
+    }
+    private void tickActionPresentation() {
+        boolean changed = actionState.expire(ticksExisted);
+        if (isMaidSleeping() || !isEntityAlive()) changed |= actionState.stopUse();
+        if (actionState.isRanged()) {
+            ItemStack held = getHeldItem(), shown = actionState.displayItem(ticksExisted);
+            if (!canEngageCombat() || isSitting() || getAttackTarget() == null || held == null || shown == null
+                    || held.getItem() != shown.getItem()) changed |= actionState.stopUse();
+        }
+        if (changed || (actionState.using(ticksExisted) && ticksExisted % 20 == 0)) syncActionPresentation();
     }
 
     public static synchronized long[] getProfile(){return new long[]{profileSamples,profileNanos,profileMaxNanos};}
@@ -377,7 +478,10 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     @Override
     @SuppressWarnings("unchecked")
     public boolean attackEntityAsMob(Entity target) {
-        if (!canEngageCombat()) return false;
+        if (!canRunCombatAI() || !(TaskManager.ATTACK_ID.equals(getTaskId())
+                || TaskManager.FEED_ANIMAL_ID.equals(getTaskId())) || !(target instanceof EntityLivingBase)
+                || !com.github.tartaricacid.touhoulittlemaid.entity.task.CombatTargeting.isValidTarget(this,
+                (EntityLivingBase) target, TaskManager.combatRange(getTaskId()))) return false;
         // EntityMaid descends from EntityTameable. In 1.7.10 that inheritance
         // reaches EntityLivingBase.attackEntityAsMob(), whose implementation
         // only records the attacker and always returns false. Use the vanilla
@@ -422,6 +526,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
                 if (agents.isEmpty()) {
                     worldObj.spawnEntityInWorld(new EntityExtinguishingAgent(
                             worldObj, target.posX, target.posY, target.posZ));
+                    swingOffhand();
                     offhand.damageItem(1, this);
                     if (offhand.stackSize <= 0)
                         maidEquipmentInventory.setInventorySlotContents(1, null);
@@ -464,6 +569,10 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
             }
             moveInventoryToTombstone(maidHideInventory, tombstone);
             moveInventoryToTombstone(maidTaskInventory, tombstone);
+            for(int slot=0;slot<3;slot++){ItemStack stack=furnaceInventory.getStackInSlot(slot);if(stack!=null)tombstone.insertItem(stack);}
+            furnaceInventory.clear();
+            for(int slot=0;slot<2;slot++){ItemStack stack=tankInventory.getStackInSlot(slot);if(stack!=null)tombstone.insertItem(stack);}
+            tankInventory.clear();
             for (int equipment = 0; equipment < 5; equipment++) setCurrentItemOrArmor(equipment, null);
             worldObj.spawnEntityInWorld(tombstone);
         }
@@ -472,7 +581,9 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
 
     @Override
     public void attackEntityWithRangedAttack(EntityLivingBase target, float distanceFactor) {
-        if (!canEngageCombat()) return;
+        if (!canRunCombatAI() || !hasRangedWeaponForCurrentTask()
+                || !com.github.tartaricacid.touhoulittlemaid.entity.task.CombatTargeting.isValidTarget(this,
+                target, TaskManager.combatRange(getTaskId()))) return;
         // Unsupported vanilla 1.7.10 professions must never fire surrogate arrows.
         if (TaskManager.CROSSBOW_ATTACK_ID.equals(getTaskId()) || TaskManager.TRIDENT_ATTACK_ID.equals(getTaskId())) return;
         if (TaskManager.DANMAKU_ATTACK_ID.equals(getTaskId())) {
@@ -509,6 +620,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
             gohei.damageItem(1, this);
             if (gohei.stackSize <= 0) maidEquipmentInventory.setInventorySlotContents(0, null);
             maidEquipmentInventory.markDirty();
+            rangedPresentationReleased();
             swingItem();
             playSound("random.bow", 0.5F, 1.2F);
             playMaidVoice("maid.mode.range_attack");
@@ -539,6 +651,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         bow.damageItem(1, this);
         if (bow.stackSize <= 0) maidEquipmentInventory.setInventorySlotContents(0, null);
         maidEquipmentInventory.markDirty();
+        rangedPresentationReleased();
         swingItem();
         worldObj.playSoundAtEntity(this, "random.bow", 1.0F, 1.0F / (getRNG().nextFloat() * 0.4F + 0.8F));
         worldObj.spawnEntityInWorld(arrow);
@@ -582,8 +695,10 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         tag.setTag(MAID_TASK_DATA_TAG,maidTaskData.copy());
         NBTTagList chat=new NBTTagList();synchronized(aiChatMessages){for(int i=0;i<aiChatMessages.size();i++){NBTTagCompound line=new NBTTagCompound();line.setString("Role",aiChatRoles.get(i));line.setString("Message",aiChatMessages.get(i));chat.appendTag(line);}}tag.setTag("MaidHistoryChat",chat);
         tag.setString(MAID_BACKPACK_TYPE, backpackType);
+        NBTTagCompound furnaceData=new NBTTagCompound();furnaceInventory.writeToNBT(furnaceData);tag.setTag("MaidFurnace",furnaceData);
         NBTTagCompound gameSkill=new NBTTagCompound();gameSkill.setInteger("Gomoku",gomokuWins);tag.setTag("MaidGameSkillData",gameSkill);
         tag.setString("MaidBackpackFluid",backpackFluid);tag.setInteger("MaidBackpackFluidAmount",backpackFluidAmount);
+        tag.setTag("MaidTankItems",tankInventory.save());
         schedulePos.writeToNBT(tag);
 
         NBTTagList inventory = new NBTTagList();
@@ -636,9 +751,13 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         maidTaskData=tag.hasKey(MAID_TASK_DATA_TAG,10)?tag.getCompoundTag(MAID_TASK_DATA_TAG):new NBTTagCompound();
         synchronized(aiChatMessages){aiChatRoles.clear();aiChatMessages.clear();NBTTagList chat=tag.getTagList("MaidHistoryChat",10);for(int i=0;i<chat.tagCount();i++){NBTTagCompound line=chat.getCompoundTagAt(i);aiChatRoles.add(line.getString("Role"));aiChatMessages.add(line.getString("Message"));}}
         setBackpackType(tag.hasKey(MAID_BACKPACK_TYPE, 8) ? tag.getString(MAID_BACKPACK_TYPE) : "empty");
+        furnaceInventory.readFromNBT(tag.hasKey("MaidFurnace",10)?tag.getCompoundTag("MaidFurnace"):
+                "furnace_backpack".equals(backpackType)?tag.getCompoundTag("MaidBackpackData"):new NBTTagCompound());
         gomokuWins=tag.hasKey("MaidGameSkillData",10)?tag.getCompoundTag("MaidGameSkillData").getInteger("Gomoku"):0;
         backpackFluid=normalizeFluidId(tag.getString("MaidBackpackFluid"));
         backpackFluidAmount=MathHelper.clamp_int(tag.getInteger("MaidBackpackFluidAmount"),0,BACKPACK_TANK_CAPACITY);
+        tankInventory.load(tag.hasKey("MaidTankItems",10)?tag.getCompoundTag("MaidTankItems"):
+                "tank_backpack".equals(backpackType)?tag.getCompoundTag("MaidBackpackData"):new NBTTagCompound());
         schedulePos.readFromNBT(tag, this);
 
         for (int slot = 0; slot < maidInventory.getSizeInventory(); slot++) {
@@ -746,6 +865,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         String nextType=backpack.getBackpackType();
         if(nextType.equals(backpackType))return;
         ItemStack previous = getEquippedBackpack();
+        dropFurnaceContents();
+        dropTankContents();
         setBackpackType(nextType);
         if("tank_backpack".equals(nextType)&&held.hasTagCompound()){
             NBTTagCompound data=held.getTagCompound();
@@ -760,6 +881,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
 
     private void takeOffBackpack(EntityPlayer player, ItemStack shears) {
         ItemStack previous=getEquippedBackpack();
+        dropFurnaceContents();
+        dropTankContents();
         setBackpackType("empty");
         backpackFluid="";backpackFluidAmount=0;
         if(previous!=null&&!player.inventory.addItemStackToInventory(previous))player.entityDropItem(previous,0.0F);
@@ -788,6 +911,16 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         return null;
     }
 
+    private void dropFurnaceContents(){
+        for(int i=0;i<3;i++){ItemStack stack=furnaceInventory.getStackInSlot(i);if(stack!=null)entityDropItem(stack,0);}
+        furnaceInventory.clear();
+    }
+
+    private void dropTankContents(){
+        for(int i=0;i<2;i++){ItemStack stack=tankInventory.getStackInSlot(i);if(stack!=null)entityDropItem(stack,0);}
+        tankInventory.clear();
+    }
+
     private void setBackpackType(String value){
         backpackType=normalizeBackpackType(value);
         dataWatcher.updateObject(WATCHER_BACKPACK_TYPE,backpackType);
@@ -808,14 +941,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     private static String modernFluidId(String value){return "water".equals(value)||"lava".equals(value)?"minecraft:"+value:value;}
 
     private void tickSpecialBackpack(){
-        if("furnace_backpack".equals(backpackType)&&ticksExisted%200==0){
-            int input=-1,fuel=-1;ItemStack result=null;
-            for(int slot=0;slot<getBackpackCapacity();slot++){ItemStack stack=maidInventory.getStackInSlot(slot);if(stack==null)continue;if(input<0){ItemStack smelt=FurnaceRecipes.smelting().getSmeltingResult(stack);if(smelt!=null){input=slot;result=smelt.copy();}}if(fuel<0&&TileEntityFurnace.isItemFuel(stack))fuel=slot;}
-            if(input>=0&&fuel>=0&&result!=null){ItemStack in=maidInventory.getStackInSlot(input),burn=maidInventory.getStackInSlot(fuel);if(--in.stackSize<=0)maidInventory.setInventorySlotContents(input,null);if(--burn.stackSize<=0)maidInventory.setInventorySlotContents(fuel,null);ItemStack left=addToMaidInventory(result);if(left!=null)entityDropItem(left,0);playSound("random.fizz",0.4F,1.4F);}
-        }
-        if("tank_backpack".equals(backpackType)&&ticksExisted%20==0&&backpackFluidAmount<=BACKPACK_TANK_CAPACITY-1000){
-            for(int slot=0;slot<getBackpackCapacity();slot++){ItemStack stack=maidInventory.getStackInSlot(slot);if(stack==null)continue;String fluid=stack.getItem()==Items.water_bucket?"water":stack.getItem()==Items.lava_bucket?"lava":stack.getItem()==Items.milk_bucket?"milk":"";if(!fluid.isEmpty()&&(backpackFluid.isEmpty()||backpackFluid.equals(fluid))){backpackFluid=fluid;backpackFluidAmount+=1000;if(--stack.stackSize<=0)maidInventory.setInventorySlotContents(slot,null);ItemStack left=addToMaidInventory(new ItemStack(Items.bucket));if(left!=null)entityDropItem(left,0);break;}}
-        }
+        if("furnace_backpack".equals(backpackType))furnaceInventory.tick();
+        if("tank_backpack".equals(backpackType)&&ticksExisted%20==0)tankInventory.tick();
     }
 
     public boolean hasBowAndArrow() {
@@ -846,13 +973,18 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     }
 
     public int findInventorySlot(net.minecraft.item.Item item) {
-        for (int slot = 0; slot < maidTaskInventory.getSizeInventory(); slot++) {
-            ItemStack stack = maidTaskInventory.getStackInSlot(slot);
-            if (stack != null && stack.getItem() == item && stack.stackSize > 0) return 200 + slot;
+        return findAvailableInventorySlot(stack -> stack.getItem() == item);
+    }
+
+    public int findAvailableInventorySlot(java.util.function.Predicate<ItemStack> predicate) {
+        InventoryBasic task = getMaidTaskInventory(), bag = getMaidInventory();
+        for (int slot = 0; slot < task.getSizeInventory(); slot++) {
+            ItemStack stack = task.getStackInSlot(slot);
+            if (stack != null && stack.stackSize > 0 && predicate.test(stack)) return 200 + slot;
         }
-        for (int slot = 0; slot < maidInventory.getSizeInventory(); slot++) {
-            ItemStack stack = maidInventory.getStackInSlot(slot);
-            if (stack != null && stack.getItem() == item && stack.stackSize > 0) return slot;
+        for (int slot = 0; slot < Math.min(getBackpackCapacity(), bag.getSizeInventory()); slot++) {
+            ItemStack stack = bag.getStackInSlot(slot);
+            if (stack != null && stack.stackSize > 0 && predicate.test(stack)) return slot;
         }
         return -1;
     }
@@ -868,7 +1000,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         InventoryBasic inventory = logicalInventory(slot); int real = logicalIndex(slot);
         if (real < 0 || real >= inventory.getSizeInventory()) return null;
         ItemStack stack = inventory.getStackInSlot(real);
-        if (stack == null) return null;
+        if (stack == null || stack.stackSize <= 0) return null;
         ItemStack result = stack.copy();
         result.stackSize = 1;
         if (--stack.stackSize <= 0) inventory.setInventorySlotContents(real, null);
@@ -962,6 +1094,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     }
     public void setTaskId(String value) { TaskManager.switchTask(this, value); }
     public void setTaskIdInternal(String value) {
+        if (actionState != null && worldObj != null && !worldObj.isRemote) { actionState.clear(); syncActionPresentation(); }
         taskId = value == null ? TaskManager.IDLE_ID : value;
         dataWatcher.updateObject(WATCHER_TASK_INDEX, TaskManager.indexOf(taskId));
         playMaidVoice(taskVoice(taskId));
@@ -986,6 +1119,20 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         return "maid.mode.idle";
     }
     public boolean canEngageCombat() { return getHealth() >= getMaxHealth() * 0.25F; }
+    public boolean canRunCombatAI() {
+        return worldObj != null && !worldObj.isRemote && isEntityAlive() && canEngageCombat()
+                && !isSitting() && !isMaidSleeping()
+                && (!isHomeMode() || schedulePos.getDimension() == dimension)
+                && getSchedule().getActivity(worldObj.getWorldTime()) == MaidActivity.WORK;
+    }
+    public boolean canRemainFishing() {
+        ItemStack rod = getHeldItem();
+        return isEntityAlive() && !isSitting() && !isMaidSleeping()
+                && TaskManager.FISHING_ID.equals(getTaskId())
+                && getSchedule().getActivity(worldObj.getWorldTime()) == MaidActivity.WORK
+                && ridingEntity instanceof EntitySit && "fishing".equals(((EntitySit)ridingEntity).getJoyType())
+                && rod != null && rod.getItem() == Items.fishing_rod;
+    }
     public boolean isWorkingNow() { return getCurrentActivity() == MaidActivity.WORK; }
     public SchedulePos getSchedulePos() { return schedulePos; }
 
@@ -995,6 +1142,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
 
     public boolean isWithinRestriction() {
         if (!isHomeMode()) return true;
+        if (schedulePos.getDimension() != dimension) return false;
         SchedulePos.Point point = schedulePos.getForActivity(getCurrentActivity());
         double dx = posX - (point.x + 0.5D);
         double dy = posY - point.y;
@@ -1005,6 +1153,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
 
     public boolean isPositionWithinRestriction(double x, double y, double z) {
         if (!isHomeMode()) return true;
+        if (schedulePos.getDimension() != dimension) return false;
         SchedulePos.Point point = schedulePos.getForActivity(getCurrentActivity());
         double dx = x - (point.x + 0.5D);
         double dy = y - point.y;
@@ -1052,6 +1201,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         if (!isSafeMeal(stack)) return false;
         ItemFood food = (ItemFood)stack.getItem();
         ItemStack used = stack.copy(); used.stackSize = 1;
+        ItemStack presentation = used.copy();
         int nutrition = food.func_150905_g(used);
         float total = nutrition + nutrition * food.func_150906_h(used) * 2;
         // ItemFood in 1.7 accepts players only. Keep its callback and remainder
@@ -1070,42 +1220,72 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
         }
         setHunger(getHunger() + nutrition * 2);
         favorabilityManager.apply("WorkMeal", rand.nextInt(100) < total ? 0 : 1, 3600);
+        beginUsePresentation(presentation, inventory == maidEquipmentInventory && slot == 1, "eat", 32);
         worldObj.playSoundAtEntity(this, "random.eat", 0.5F, 1);
         return true;
     }
 
+    public boolean canRunIdleMovement() {
+        return !isSitting() && !isRiding() && !isMaidSleeping()
+                && !(isHomeMode() && schedulePos.getDimension()==dimension
+                && getSchedule().getActivity(worldObj.getWorldTime())==MaidActivity.REST);
+    }
     private void tickHomeBehaviors() {
-        boolean rest = isHomeMode() && !isSitting() && getCurrentActivity() == MaidActivity.REST;
+        boolean rest = isHomeMode() && schedulePos.getDimension() == dimension && !isSitting() && getCurrentActivity() == MaidActivity.REST;
         if (ridingEntity instanceof EntitySit && "bed".equals(((EntitySit)ridingEntity).getJoyType()) && !rest) {
             Entity seat = ridingEntity; mountEntity(null); seat.setDead();
         }
         setMaidFlag(FLAG_SLEEPING, rest && ridingEntity instanceof EntitySit && "bed".equals(((EntitySit)ridingEntity).getJoyType()));
         if (isSitting()) { setMaidFlag(FLAG_BEGGING, false); return; }
+        if (rest) {
+            setMaidFlag(FLAG_BEGGING,false);
+            if (!isRiding() && isPeriodicTick(20)) seekBedAndRest();
+            return;
+        }
         Entity owner=getOwner();ItemStack temptation=owner instanceof EntityPlayer?((EntityPlayer)owner).getCurrentEquippedItem():null;
         boolean begging=owner!=null&&getDistanceSqToEntity(owner)<36&&temptation!=null&&(temptation.getItem()==Items.cake||temptation.getItem() instanceof ItemFood);
-        setMaidFlag(FLAG_BEGGING,begging);if(begging){getLookHelper().setLookPositionWithEntity(owner,20,20);if(getDistanceSqToEntity(owner)>4)getNavigator().tryMoveToEntityLiving(owner,.6D);}
-        if (rest) { if (!isRiding() && isPeriodicTick(20)) seekBedAndRest(); return; }
+        setMaidFlag(FLAG_BEGGING,begging);if(begging){getLookHelper().setLookPositionWithEntity(owner,20,20);if(!isRiding()&&isPositionWithinRestriction(owner.posX,owner.posY,owner.posZ)&&getDistanceSqToEntity(owner)>4)getNavigator().tryMoveToEntityLiving(owner,.6D);}
         if (!isHomeMode()) return;
         if(getCurrentActivity()!=MaidActivity.IDLE||begging||isRiding())return;
         if(getHunger()<80&&isPeriodicTick(100)&&eatNearbyHomeMeal())return;
         if(isPeriodicTick(200))seekJoyBlock();
     }
-    @SuppressWarnings("unchecked") private boolean eatNearbyHomeMeal(){for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof TileEntityInventory)||distanceToTile(tile)>64)continue;TileEntityInventory inv=(TileEntityInventory)tile;for(int slot=0;slot<inv.getSizeInventory();slot++){ItemStack stack=inv.getStackInSlot(slot);if(isSafeMeal(stack)){if(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat&&!isRiding())((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat)inv).seatMaid(this);int food=((ItemFood)stack.getItem()).func_150905_g(stack);inv.decrStackSize(slot,1);setHunger(getHunger()+food*2);heal(Math.max(1,food*.5F));favorabilityManager.apply(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?"OnHomeMeal":"HomeMeal",1,inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?24000:1200);playMaidVoice("maid.mode.feed");return true;}}}return false;}
+    @SuppressWarnings("unchecked") private boolean eatNearbyHomeMeal(){for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof TileEntityInventory)||distanceToTile(tile)>64)continue;TileEntityInventory inv=(TileEntityInventory)tile;for(int slot=0;slot<inv.getSizeInventory();slot++){ItemStack stack=inv.getStackInSlot(slot);if(isSafeMeal(stack)){if(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat&&!isRiding())((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat)inv).seatMaid(this);int food=((ItemFood)stack.getItem()).func_150905_g(stack);beginUsePresentation(stack,false,"eat",32);inv.decrStackSize(slot,1);setHunger(getHunger()+food*2);heal(Math.max(1,food*.5F));favorabilityManager.apply(inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?"OnHomeMeal":"HomeMeal",1,inv instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityPicnicMat?24000:1200);playMaidVoice("maid.mode.feed");return true;}}}return false;}
     @SuppressWarnings("unchecked") private void seekJoyBlock(){for(Object value:worldObj.loadedTileEntityList){net.minecraft.tileentity.TileEntity tile=(net.minecraft.tileentity.TileEntity)value;if(!(tile instanceof TileEntityJoy)||distanceToTile(tile)>64||!(worldObj.getBlock(tile.xCoord,tile.yCoord,tile.zCoord) instanceof BlockJoy)||((TileEntityJoy)tile).getSitEntity()!=null)continue;int x=tile.xCoord,y=tile.yCoord,z=tile.zCoord;if(getDistanceSq(x+.5,y+.5,z+.5)>4){getNavigator().tryMoveToXYZ(x+.5,y,z+.5,.6D);return;}BlockJoy joy=(BlockJoy)worldObj.getBlock(x,y,z);EntitySit sit=new EntitySit(worldObj,x+.5,y+joy.getSitYOffset(),z+.5,joy.getJoyType(),x,y,z);sit.rotationYaw=(worldObj.getBlockMetadata(x,y,z)&3)*90.0F+joy.getSitYawOffset();worldObj.spawnEntityInWorld(sit);((TileEntityJoy)tile).setSitEntity(sit);mountEntity(sit);return;}}
     private void seekBedAndRest() {
         SchedulePos.Point p = schedulePos.getForActivity(MaidActivity.REST);
         if (schedulePos.getDimension() != dimension) return;
+        java.util.List<com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed> candidates=new java.util.ArrayList<com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed>();
         for (Object value : worldObj.loadedTileEntityList) {
             net.minecraft.tileentity.TileEntity tile = (net.minecraft.tileentity.TileEntity)value;
             if (!(tile instanceof com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)
-                    || Math.abs(tile.xCoord-p.x)>8 || Math.abs(tile.yCoord-p.y)>2 || Math.abs(tile.zCoord-p.z)>8) continue;
+                    || Math.abs(tile.xCoord-p.x)>SchedulePos.SLEEP_RANGE || Math.abs(tile.yCoord-p.y)>2 || Math.abs(tile.zCoord-p.z)>SchedulePos.SLEEP_RANGE) continue;
+            if(((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)tile).isComplete()
+                    && isPositionWithinRestriction(tile.xCoord+.5,tile.yCoord,tile.zCoord+.5))
+                candidates.add((com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed)tile);
+        }
+        java.util.Collections.sort(candidates,new java.util.Comparator<com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed>(){
+            public int compare(com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed a,com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed b){return Double.compare(distanceToTile(a),distanceToTile(b));}
+        });
+        for(com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityMaidBed tile:candidates){
             int x=tile.xCoord,y=tile.yCoord,z=tile.zCoord;
             boolean occupied = false;
             for (Object entity : worldObj.loadedEntityList) if (entity instanceof EntitySit && !((EntitySit)entity).isDead
                     && "bed".equals(((EntitySit)entity).getJoyType()) && ((EntitySit)entity).isAssociatedWith(x,y,z)) { occupied=true; break; }
             if (occupied) continue;
-            if (getDistanceSq(x+.5,y+.5,z+.5)>4) { getNavigator().tryMoveToXYZ(x+.5,y+.5,z+.5,.6D); return; }
+            if (getDistanceSq(x+.5,y+.5,z+.5)>4) {
+                // A cloth bed is a solid path node in 1.7: approach adjacent air,
+                // then mount within two blocks. Try another bed if no route exists.
+                for(int[] side:new int[][]{{1,0},{-1,0},{0,1},{0,-1}}){
+                    int ax=x+side[0],az=z+side[1];
+                    if(worldObj.blockExists(ax,y,az)&&worldObj.isAirBlock(ax,y,az)&&worldObj.isAirBlock(ax,y+1,az)
+                            && World.doesBlockHaveSolidTopSurface(worldObj,ax,y-1,az)
+                            && getNavigator().tryMoveToXYZ(ax+.5,y,az+.5,.6D))return;
+                }
+                continue;
+            }
             EntitySit seat=new EntitySit(worldObj,x+.5,y+.8,z+.5,"bed",x,y,z);
+            seat.rotationYaw=(worldObj.getBlockMetadata(x,y,z)&3)*90F;
             if (worldObj.spawnEntityInWorld(seat)) { mountEntity(seat); getNavigator().clearPathEntity(); setMaidFlag(FLAG_SLEEPING,true); }
             return;
         }
@@ -1203,6 +1383,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
     private void transferMaidToChest(net.minecraft.inventory.IInventory chest,NBTTagCompound data){for(int sourceSlot=0;sourceSlot<maidInventory.getSizeInventory();sourceSlot++){ItemStack source=maidInventory.getStackInSlot(sourceSlot);if(source==null||source.getItem()==ModItems.WIRELESS_IO||!com.github.tartaricacid.touhoulittlemaid.item.ItemWirelessIO.matchesFilter(data,source))continue;for(int slot=0;slot<chest.getSizeInventory();slot++){ItemStack target=chest.getStackInSlot(slot);if(target==null&&chest.isItemValidForSlot(slot,source)){ItemStack one=source.copy();one.stackSize=1;chest.setInventorySlotContents(slot,one);takeOneFromSlot(sourceSlot);chest.markDirty();return;}if(target!=null&&target.isItemEqual(source)&&ItemStack.areItemStackTagsEqual(target,source)&&target.stackSize<Math.min(target.getMaxStackSize(),chest.getInventoryStackLimit())){target.stackSize++;takeOneFromSlot(sourceSlot);chest.markDirty();return;}}return;}}
 
     public boolean safeTeleportNear(EntityPlayer owner) {
+        if (owner == null || owner.worldObj != worldObj || owner.dimension != dimension) return false;
         int baseX = net.minecraft.util.MathHelper.floor_double(owner.posX);
         int baseY = net.minecraft.util.MathHelper.floor_double(owner.boundingBox.minY);
         int baseZ = net.minecraft.util.MathHelper.floor_double(owner.posZ);
@@ -1210,11 +1391,13 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob {
             int x = baseX + rand.nextInt(radius * 2 + 1) - radius;
             int z = baseZ + rand.nextInt(radius * 2 + 1) - radius;
             int y = baseY + rand.nextInt(5) - 2;
-            while (y > 1 && worldObj.isAirBlock(x, y - 1, z)) y--;
-            net.minecraft.block.material.Material floor = worldObj.getBlock(x, y - 1, z).getMaterial();
-            if (floor.blocksMovement() && !floor.isLiquid() && worldObj.isAirBlock(x, y, z) && worldObj.isAirBlock(x, y + 1, z)) {
-                setPositionAndUpdate(x + 0.5D, y, z + 0.5D); getNavigator().clearPathEntity(); return true;
-            }
+            if (!com.github.tartaricacid.touhoulittlemaid.entity.ai.MaidTeleportSafety.canStand(worldObj,this,x+.5D,y,z+.5D)) continue;
+            net.minecraftforge.event.entity.living.EnderTeleportEvent event =
+                    new net.minecraftforge.event.entity.living.EnderTeleportEvent(this,x+.5D,y,z+.5D,0);
+            if (net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(event)) return false;
+            if (!com.github.tartaricacid.touhoulittlemaid.entity.ai.MaidTeleportSafety.canStand(worldObj,this,event.targetX,event.targetY,event.targetZ)) return false;
+            setPositionAndUpdate(event.targetX,event.targetY,event.targetZ);
+            getNavigator().clearPathEntity(); return true;
         }
         return false;
     }

@@ -51,6 +51,7 @@ public final class TileEntityMaidBeacon extends TileEntity {
                 net.minecraft.util.AxisAlignedBB.getBoundingBox(xCoord - range, yCoord - range, zCoord - range,
                         xCoord + range + 1, yCoord + range + 1, zCoord + range + 1));
         for (EntityPowerPoint point : points) {
+            if (point.isDead) continue;
             float add = point.getValue() / 100.0F;
             if (storagePower + add <= getMaxStorage()) {
                 storagePower += add; point.setDead(); markDirty();
@@ -78,7 +79,8 @@ public final class TileEntityMaidBeacon extends TileEntity {
 
     @Override public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
-        potionIndex = Math.max(-1, Math.min(EFFECTS.length - 1, tag.getInteger("PotionIndex")));
+        tag = LegacyTileNbt.data(tag);
+        potionIndex = tag.hasKey("PotionIndex") ? Math.max(-1, Math.min(EFFECTS.length - 1, tag.getInteger("PotionIndex"))) : -1;
         float savedPower = tag.getFloat("StoragePower");
         storagePower = Float.isNaN(savedPower) || Float.isInfinite(savedPower)
                 ? 0 : Math.max(0, Math.min(getMaxStorage(), savedPower));

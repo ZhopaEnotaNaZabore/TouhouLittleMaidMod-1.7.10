@@ -44,3 +44,4 @@ task.touhou_little_maid.milk=Melken
 task.touhou_little_maid.torch=Fackel
 task.touhou_little_maid.feed_animal=Art
 task.touhou_little_maid.extinguishing=Auslöschen
+message.touhou_little_maid.altar.not_enough_power=Du hast nicht genug Energie.

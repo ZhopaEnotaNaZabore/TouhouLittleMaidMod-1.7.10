@@ -118,7 +118,7 @@ public final class BlockBoardGame extends BlockContainer {
         EntitySit sit=board.getSitEntity();if(sit!=null&&sit.riddenByEntity instanceof EntityMaid&&(!LegacyConfig.boardOwnerOnly||((EntityMaid)sit.riddenByEntity).getOwner()==player)){updateMaidSeat(world,x,y,z,sit);return(EntityMaid)sit.riddenByEntity;}
         @SuppressWarnings("unchecked") java.util.List<EntityMaid> maids=world.getEntitiesWithinAABB(EntityMaid.class,AxisAlignedBB.getBoundingBox(x-6,y-3,z-6,x+7,y+4,z+7));
         EntityMaid nearest=null;double distance=Double.MAX_VALUE;for(EntityMaid maid:maids){double d=maid.getDistanceSq(x+.5,y+.5,z+.5);if(TaskManager.BOARD_GAMES_ID.equals(maid.getTaskId())&&(!LegacyConfig.boardOwnerOnly||maid.getOwner()==player)&&d<distance){nearest=maid;distance=d;}}
-        if(nearest==null)return null;if(sit!=null)sit.setDead();startMaidGame(world,x,y,z,board,nearest);return nearest;
+        if(nearest==null)return null;if(sit!=null)sit.setDead();return startMaidGame(world,x,y,z,board,nearest)==null?null:nearest;
     }
 
     /**
@@ -160,7 +160,7 @@ public final class BlockBoardGame extends BlockContainer {
         EntitySit sit = new EntitySit(world, x + 0.5D, y + 0.1D, z + 0.5D,
                 "Gomoku", x, y, z);
         updateMaidSeat(world, x, y, z, sit);
-        world.spawnEntityInWorld(sit);
+        if (!world.spawnEntityInWorld(sit)) return null;
         maid.setMaidSitting(false);
         maid.mountEntity(sit);
         board.setSitEntity(sit);

@@ -43,7 +43,7 @@ public final class ModBlocks {
     public static final Block GARAGE_KIT = new BlockGarageKit();
     public static final Block MAID_BEACON = new BlockMaidBeacon();
     public static final Block MODEL_SWITCHER = new BlockModelSwitcher();
-    public static final Block PICNIC_MAT = new BlockInventoryDevice("picnic_mat", BlockInventoryDevice.Type.PICNIC_MAT);
+    public static final Block PICNIC_MAT = new com.github.tartaricacid.touhoulittlemaid.block.BlockPicnicMat();
     public static final Block GOMOKU = new BlockBoardGame("gomoku", BlockBoardGame.Type.GOMOKU);
     public static final Block CCHESS = new BlockBoardGame("cchess", BlockBoardGame.Type.CCHESS);
     public static final Block WCHESS = new BlockBoardGame("wchess", BlockBoardGame.Type.WCHESS);
@@ -64,7 +64,7 @@ public final class ModBlocks {
         assignCreativeTab();
         register(MAID_BED, "maid_bed"); register(ALTAR, "altar"); register(STATUE, "statue");
         register(GARAGE_KIT, "garage_kit"); GameRegistry.registerBlock(MAID_BEACON, ItemBlockMaidBeacon.class, "maid_beacon");
-        GameRegistry.registerBlock(MODEL_SWITCHER, ItemBlockModelSwitcher.class, "model_switcher"); register(PICNIC_MAT, "picnic_mat");
+        GameRegistry.registerBlock(MODEL_SWITCHER, ItemBlockModelSwitcher.class, "model_switcher"); GameRegistry.registerBlock(PICNIC_MAT, com.github.tartaricacid.touhoulittlemaid.item.ItemBlockPicnicMat.class, "picnic_mat");
         register(GOMOKU, "gomoku"); register(CCHESS, "cchess"); register(WCHESS, "wchess");
         register(BOARD_PROXY, "board_proxy");
         register(KEYBOARD, "keyboard"); register(BOOKSHELF, "bookshelf"); register(COMPUTER, "computer");

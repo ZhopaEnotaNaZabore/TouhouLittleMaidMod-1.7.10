@@ -120,7 +120,10 @@ public final class LegacyItemRenderer implements IItemRenderer, IResourceManager
                 if (type != ItemRenderType.ENTITY) GL11.glTranslatef(0.5F, 0.5F, 0.5F);
                 String context = type == ItemRenderType.ENTITY ? "ground"
                         : type == ItemRenderType.EQUIPPED_FIRST_PERSON ? "firstperson_righthand" : "thirdperson_righthand";
-                transform(entry.model, context);
+                boolean left = type == ItemRenderType.EQUIPPED && LegacyMaidItemContext.isLeft();
+                JsonObject display = entry.model.getAsJsonObject("display");
+                if (left && display != null && display.has("thirdperson_lefthand")) context = "thirdperson_lefthand";
+                transform(entry.model, context, left);
                 GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
                 renderModel(entry.model);
             } else {
@@ -136,13 +139,34 @@ public final class LegacyItemRenderer implements IItemRenderer, IResourceManager
         }
     }
 
-    private static void transform(JsonObject model, String context) {
+    /** Direct modern hand origin; bypass Forge's additional equipped transforms. */
+    public void renderMaidHand(ItemStack stack) {
+        Entry entry=entries.get(stack.getItem());if(entry==null || entry.sprite==null)return;
+        GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);GL11.glPushMatrix();
+        try {
+            GL11.glColor4f(1,1,1,1);GL11.glEnable(GL11.GL_ALPHA_TEST);GL11.glAlphaFunc(GL11.GL_GREATER,.1F);
+            GL11.glDisable(GL11.GL_CULL_FACE);GL11.glEnable(GL11.GL_NORMALIZE);
+            if(entry.model!=null){
+                boolean left=LegacyMaidItemContext.isLeft();JsonObject display=entry.model.getAsJsonObject("display");
+                String context=left&&display!=null&&display.has("thirdperson_lefthand")?"thirdperson_lefthand":"thirdperson_righthand";
+                transform(entry.model,context,left);GL11.glTranslatef(-.5F,-.5F,-.5F);renderModel(entry.model);
+            } else {
+                GL11.glTranslatef(0,3F/16,1F/16);GL11.glScalef(.55F,.55F,.55F);GL11.glTranslatef(-.5F,-.5F,0);
+                Minecraft.getMinecraft().getTextureManager().bindTexture(TextureMap.locationItemsTexture);
+                IIcon icon=entry.sprite;ItemRenderer.renderItemIn2D(Tessellator.instance,icon.getMaxU(),icon.getMinV(),icon.getMinU(),icon.getMaxV(),icon.getIconWidth(),icon.getIconHeight(),.0625F);
+            }
+        } finally {GL11.glPopMatrix();GL11.glPopAttrib();}
+    }
+
+    private static void transform(JsonObject model, String context, boolean left) {
         JsonObject display = model.getAsJsonObject("display");
         if (display == null || !display.has(context)) return;
         JsonObject transform = display.getAsJsonObject(context);
         double[] move = vector(transform, "translation", new double[]{0, 0, 0});
         double[] rotate = vector(transform, "rotation", new double[]{0, 0, 0});
         double[] scale = vector(transform, "scale", new double[]{1, 1, 1});
+        // ItemTransform.apply(left): mirrored X translation and Y/Z angles, not mirrored mesh/UV.
+        if (left) { move[0] = -move[0]; rotate[1] = -rotate[1]; rotate[2] = -rotate[2]; }
         GL11.glTranslated(move[0] / 16, move[1] / 16, move[2] / 16);
         GL11.glRotated(rotate[0], 1, 0, 0);
         GL11.glRotated(rotate[1], 0, 1, 0);

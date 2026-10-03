@@ -17,7 +17,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraft.util.MathHelper;
 
-public final class BlockInventoryDevice extends BlockContainer {
+public class BlockInventoryDevice extends BlockContainer {
     public enum Type { SHRINE, PICNIC_MAT, SNACK_CABINET }
     private final Type type;
 
@@ -77,9 +77,10 @@ public final class BlockInventoryDevice extends BlockContainer {
         if (stored != null && held == null) {
             if (!player.capabilities.isCreativeMode && player.getHealth() < player.getMaxHealth() / 2.0F + 1.0F) return true;
             if (!world.isRemote) {
-                if (!player.capabilities.isCreativeMode) player.setHealth(0.25F);
-                if (ItemFilm.filmToMaid(stored, world, x, y + 1, z, player) && stored.stackSize <= 0) {
-                    shrine.setInventorySlotContents(0, null);
+                if (ItemFilm.filmToMaid(stored, world, x, y + 1, z, player)) {
+                    if (!player.capabilities.isCreativeMode) player.setHealth(0.25F);
+                    if (stored.stackSize <= 0) shrine.setInventorySlotContents(0, null);
+                    else shrine.markDirty();
                 }
             }
             return true;
@@ -90,7 +91,7 @@ public final class BlockInventoryDevice extends BlockContainer {
     @Override
     public void breakBlock(World world, int x, int y, int z, net.minecraft.block.Block block, int meta) {
         TileEntity tile = world.getTileEntity(x, y, z);
-        if (tile instanceof TileEntityInventory) {
+        if (!world.isRemote && tile instanceof TileEntityInventory) {
             if(tile instanceof TileEntityPicnicMat)((TileEntityPicnicMat)tile).removeSeats();
             TileEntityInventory inventory = (TileEntityInventory) tile;
             for (int slot = 0; slot < inventory.getSizeInventory(); slot++) {

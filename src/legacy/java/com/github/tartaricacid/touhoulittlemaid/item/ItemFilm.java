@@ -34,6 +34,11 @@ public final class ItemFilm extends Item {
         data.removeTag(EntityMaid.MAID_HIDE_INVENTORY_TAG);
         data.removeTag(EntityMaid.MAID_TASK_INVENTORY_TAG);
         data.removeTag(EntityMaid.MAID_BACKPACK_TYPE);
+        data.removeTag("MaidFurnace");
+        data.removeTag("MaidTankItems");
+        data.removeTag("MaidBackpackFluid");
+        data.removeTag("MaidBackpackFluidAmount");
+        data.removeTag("MaidBackpackData");
         data.removeTag("Pos"); data.removeTag("Motion"); data.removeTag("Rotation");
         data.removeTag("Health"); data.removeTag("HurtTime"); data.removeTag("DeathTime");
         data.setString("id", TouhouLittleMaid.MOD_ID + ":maid");
@@ -55,7 +60,7 @@ public final class ItemFilm extends Item {
             maid.readFromNBT(film.getTagCompound().getCompoundTag(MAID_INFO));
             maid.setPosition(x + 0.5D, y, z + 0.5D);
             maid.setHealth(maid.getMaxHealth());
-            world.spawnEntityInWorld(maid);
+            if (!world.spawnEntityInWorld(maid)) return false;
             world.playSoundAtEntity(maid, "random.levelup", 1.0F, 1.0F);
             player.triggerAchievement(ModAchievements.RESURRECT);
             --film.stackSize;

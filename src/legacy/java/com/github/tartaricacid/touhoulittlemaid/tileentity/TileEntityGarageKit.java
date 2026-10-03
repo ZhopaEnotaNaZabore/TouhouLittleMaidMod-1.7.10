@@ -17,6 +17,7 @@ public final class TileEntityGarageKit extends TileEntity {
     }
     @Override public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
+        tag = LegacyTileNbt.data(tag);
         facing = readFacing(tag);
         extraData = tag.hasKey("ExtraData", 10) ? tag.getCompoundTag("ExtraData") : new NBTTagCompound();
     }

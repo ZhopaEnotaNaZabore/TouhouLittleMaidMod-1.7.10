@@ -32,7 +32,7 @@ public final class GuiMaid extends AbstractGuiMaid {
         buttonList.add(new GuiButton(4, guiLeft + 30, guiTop + 206, 20, 20, "P"));
         buttonList.add(new GuiButton(5, guiLeft + 51, guiTop + 206, 20, 20, "S"));
         GuiButton backpack = new GuiButton(7, guiLeft + 72, guiTop + 187, 12, 14, "B");
-        backpack.enabled = !"empty".equals(maid.getBackpackType());
+        backpack.enabled = hasSpecialBackpackScreen();
         buttonList.add(backpack);
         buttonList.add(createBaubleButton(6, false));
         if (taskListOpen) addTaskListButtons();
@@ -90,7 +90,7 @@ public final class GuiMaid extends AbstractGuiMaid {
             if (button.id == 3) button.displayString = (maid.isHomeMode() ? "\u00a7a" : "\u00a7c") + "H";
             if (button.id == 4) button.displayString = (maid.isPickupEnabled() ? "\u00a7a" : "\u00a7c") + "P";
             if (button.id == 5) button.displayString = (maid.isSitting() ? "\u00a7a" : "\u00a7c") + "S";
-            if (button.id == 7) button.enabled = !"empty".equals(maid.getBackpackType());
+            if (button.id == 7) button.enabled = hasSpecialBackpackScreen();
         }
     }
 
@@ -102,6 +102,7 @@ public final class GuiMaid extends AbstractGuiMaid {
                     || mouseY < button.yPosition || mouseY >= button.yPosition + button.height) continue;
             String key = button.id == 3 ? "home" : button.id == 4 ? "pickup" : button.id == 5 ? "sitting" : button.id == 7 ? "backpack" : null;
             String text = key == null ? null : net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.control."+key);
+            if (button.id == 7 && !hasSpecialBackpackScreen()) text = net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.control.backpack_open");
             if (button.id >= 200 && button.id < 212) {
                 List<IMaidTask> tasks = new ArrayList<IMaidTask>(TaskManager.getTasks().values());
                 int index = taskPage*12+button.id-200;
@@ -109,6 +110,12 @@ public final class GuiMaid extends AbstractGuiMaid {
             }
             if (text != null) drawHoveringText(java.util.Collections.singletonList(text),mouseX,mouseY,fontRendererObj);
         }
+    }
+
+    private boolean hasSpecialBackpackScreen() {
+        String type=maid.getBackpackType();
+        return "crafting_table_backpack".equals(type) || "ender_chest_backpack".equals(type)
+                || "furnace_backpack".equals(type) || "tank_backpack".equals(type);
     }
 
     private void sendConfig(int action) {

@@ -1,6 +1,7 @@
 package com.github.tartaricacid.touhoulittlemaid.client.model.bedrock;
 
 import com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid;
+import com.github.tartaricacid.touhoulittlemaid.client.model.bedrock.animation.*;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -28,7 +29,11 @@ import java.util.HashSet;
 public final class LegacyMaidModelRegistry implements IResourceManagerReloadListener {
     public static final LegacyMaidModelRegistry INSTANCE = new LegacyMaidModelRegistry();
     private final Map<String, Entry> entries = new HashMap<String, Entry>();
-    private final Map<String, LegacyBedrockModel> models = new HashMap<String, LegacyBedrockModel>();
+    private static final String DEFAULT_ID = "touhou_little_maid:hakurei_reimu";
+    private final Map<String, Resolved> resolved = new HashMap<String, Resolved>();
+    private final Set<String> failed = new HashSet<String>();
+    private final Map<String, LegacyAnimationLibrary> libraries = new HashMap<String, LegacyAnimationLibrary>();
+    private Resolved empty;
     private boolean loaded;
 
     private LegacyMaidModelRegistry() {}
@@ -39,22 +44,83 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
         return entry == null ? entries.get("touhou_little_maid:hakurei_reimu") : entry;
     }
 
-    public LegacyBedrockModel getModel(String id, LegacyBedrockModel fallback) {
-        Entry entry = getEntry(id);
-        if (entry == null) return fallback;
-        LegacyBedrockModel cached = models.get(entry.id);
+    public LegacyBedrockModel getModel(String id, LegacyBedrockModel unusedFallback) {
+        return resolve(id).model;
+    }
+
+    /** Geometry, texture, scale and animation profile are selected as one unit. */
+    public Resolved resolve(String id) {
+        ensureLoaded();
+        Resolved value = resolved.get(id);
+        if (value != null) return value;
+        Entry requested = entries.get(id);
+        value = load(requested);
+        if (value == null) value = load(entries.get(DEFAULT_ID));
+        if (value == null) {
+            if (empty == null) {
+                Entry entry = new Entry("<missing>", new ResourceLocation("touhou_little_maid:models/entity/hakurei_reimu.json"),
+                        new ResourceLocation("touhou_little_maid:textures/entity/hakurei_reimu.png"), 1, 1, false, false,
+                        false, Collections.<String>emptyList(), true);
+                empty = new Resolved(entry, new LegacyBedrockModel());
+            }
+            value = empty;
+        }
+        resolved.put(id, value);
+        return value;
+    }
+    private Resolved load(Entry entry) {
+        if (entry == null || failed.contains(entry.id)) return null;
+        Resolved cached = resolved.get(entry.id);
         if (cached != null) return cached;
-        InputStream stream = null;
+        IResourceManager manager = Minecraft.getMinecraft().getResourceManager();
         try {
-            stream = Minecraft.getMinecraft().getResourceManager().getResource(entry.model).getInputStream();
-            LegacyBedrockModel model = new LegacyBedrockModel(stream);
-            models.put(entry.id, model);
-            return model;
+            // Validate and close the selected texture; never put another skin on this geometry.
+            try (InputStream texture = manager.getResource(entry.texture).getInputStream()) { if (javax.imageio.ImageIO.read(texture) == null) throw new IllegalArgumentException("Unreadable texture"); }
+            LegacyBedrockModel model;
+            try (InputStream geometry = manager.getResource(entry.model).getInputStream()) { model = new LegacyBedrockModel(geometry); }
+            LegacyAnimationLibrary library = animationLibrary(manager, entry.profile);
+            model.configureAnimations(entry.profile, library);
+            Resolved value = new Resolved(entry, model);
+            resolved.put(entry.id, value);
+            return value;
         } catch (Exception error) {
+            failed.add(entry.id);
             TouhouLittleMaid.LOGGER.error("Unable to load maid model {} from {}", entry.id, entry.model, error);
-            return fallback;
-        } finally {
-            if (stream != null) try { stream.close(); } catch (Exception ignored) {}
+            return null;
+        }
+    }
+    private LegacyAnimationLibrary animationLibrary(IResourceManager manager, LegacyAnimationProfile profile) {
+        String key = profile.gecko + ":" + profile.animations.toString();
+        LegacyAnimationLibrary cached = libraries.get(key);
+        if (cached != null) return cached;
+        LegacyAnimationLibrary library = new LegacyAnimationLibrary();
+        if (profile.gecko) {
+            boolean readable = true;
+            for (String path : profile.animations) {
+                try { library.merge(readJson(manager, new ResourceLocation(path)), path, false); }
+                catch (Exception error) {
+                    readable = false;
+                    TouhouLittleMaid.LOGGER.error("Unable to load animation file {}; missing channels remain at rest", path, error);
+                }
+            }
+            // SRC GeckoModelLoader.registerMaidAnimations fills only absent names.
+            // A failed explicit file cannot be reconstructed safely from another default.
+            if (readable && !profile.animations.contains(LegacyAnimationProfile.DEFAULT_JSON)) {
+                try { library.merge(readJson(manager, new ResourceLocation(LegacyAnimationProfile.DEFAULT_JSON)), LegacyAnimationProfile.DEFAULT_JSON, true); }
+                catch (Exception error) { TouhouLittleMaid.LOGGER.error("Unable to load default maid animation clips", error); }
+            }
+            for (Map.Entry<String, String> problem : library.diagnostics().entrySet())
+                TouhouLittleMaid.LOGGER.warn("Unsupported maid animation {}: {}", problem.getKey(), problem.getValue());
+        } else {
+            for (String path : profile.animations) if (!LegacyMaidAnimations.applyOne(new LegacyAnimationPose(), path, new LegacyAnimationFrame()))
+                TouhouLittleMaid.LOGGER.warn("Unsupported maid script {}; no substitute animation is applied", path);
+        }
+        libraries.put(key, library);
+        return library;
+    }
+    private static JsonObject readJson(IResourceManager manager, ResourceLocation location) throws java.io.IOException {
+        try (InputStream stream = manager.getResource(location).getInputStream()) {
+            return new JsonParser().parse(new InputStreamReader(stream, Charset.forName("UTF-8"))).getAsJsonObject();
         }
     }
 
@@ -71,7 +137,8 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
         if (loaded) return;
         loaded = true;
         IResourceManager manager = Minecraft.getMinecraft().getResourceManager();
-        Set<String> domains = manager.getResourceDomains();
+        List<String> domains = new ArrayList<String>(manager.getResourceDomains());
+        Collections.sort(domains);
         for (String domain : domains) loadPack(manager, domain);
     }
 
@@ -83,22 +150,26 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
             JsonArray list = root.getAsJsonArray("model_list");
             if (list == null) return;
             for (JsonElement element : list) {
+              try {
                 JsonObject json = element.getAsJsonObject();
                 String id = json.get("model_id").getAsString();
+                if (id.indexOf(':') < 0) id = domain + ":" + id;
                 String path = id.substring(id.indexOf(':') + 1);
                 String idDomain = id.indexOf(':') < 0 ? domain : id.substring(0, id.indexOf(':'));
                 ResourceLocation model = location(json, "model", idDomain, "models/entity/" + path + ".json");
                 ResourceLocation texture = location(json, "texture", idDomain, "textures/entity/" + path + ".png");
                 float scale = json.has("render_entity_scale") ? json.get("render_entity_scale").getAsFloat() : 1.0F;
-                scale = Math.max(0.2F, Math.min(2.0F, scale));
+                if (Float.isNaN(scale) || Float.isInfinite(scale)) throw new IllegalArgumentException("Invalid model scale");
+                // SRC MaidModelInfo.decorate() explicitly clamps entity scale to [0.2, 2].
+                scale = Math.max(.2F, Math.min(2F, scale));
                 float itemScale = json.has("render_item_scale") ? json.get("render_item_scale").getAsFloat() : 1.0F;
                 boolean showBackpack = !json.has("show_backpack") || json.get("show_backpack").getAsBoolean();
                 boolean showCustomHead = !json.has("show_custom_head") || json.get("show_custom_head").getAsBoolean();
                 boolean gecko = json.has("is_gecko") && json.get("is_gecko").getAsBoolean();
-                Set<String> animations = new HashSet<String>();
+                List<String> animations = new ArrayList<String>();
                 JsonArray animationList = json.getAsJsonArray("animation");
                 if (animationList != null) for (JsonElement animation : animationList)
-                    animations.add(animation.getAsString());
+                    animations.add(animation.getAsString().indexOf(':') < 0 ? domain + ":" + animation.getAsString() : animation.getAsString());
                 Entry base = new Entry(id, model, texture, scale, itemScale, showBackpack, showCustomHead,
                         gecko, animations, animationList == null || animationList.size() == 0);
                 entries.put(id, base);
@@ -108,16 +179,21 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
                 JsonArray extras = json.getAsJsonArray("extra_textures");
                 if (extras != null) {
                     for (JsonElement extra : extras) {
-                        ResourceLocation extraTexture = resource(extra.getAsString(), domain);
+                        ResourceLocation extraTexture = resource(extra.getAsString(), idDomain);
                         String extraId = id + "_" + md5(extraTexture.getResourcePath()).toLowerCase(Locale.US);
                         entries.put(extraId, new Entry(extraId, model, extraTexture, scale, itemScale,
                                 showBackpack, showCustomHead, gecko, animations,
                                 animationList == null || animationList.size() == 0));
                     }
                 }
+              } catch (Exception error) {
+                  TouhouLittleMaid.LOGGER.error("Invalid maid model entry in namespace {}", domain, error);
+              }
             }
-        } catch (Exception ignored) {
+        } catch (java.io.FileNotFoundException absent) {
             // A namespace without a maid pack is normal.
+        } catch (Exception error) {
+            TouhouLittleMaid.LOGGER.error("Unable to read maid pack in namespace {}", domain, error);
         } finally {
             if (stream != null) try { stream.close(); } catch (Exception ignored) {}
         }
@@ -147,7 +223,7 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
     public void onResourceManagerReload(IResourceManager manager) {
         loaded = false;
         entries.clear();
-        models.clear();
+        resolved.clear(); failed.clear(); libraries.clear(); empty = null;
     }
 
     public static final class Entry {
@@ -159,21 +235,28 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
         public final boolean showBackpack;
         public final boolean showCustomHead;
         public final boolean gecko;
-        private final Set<String> animations;
+        public final LegacyAnimationProfile profile;
+        private final List<String> animations;
         private final boolean defaultAnimations;
         private Entry(String id, ResourceLocation model, ResourceLocation texture, float scale, float itemScale,
-                      boolean showBackpack, boolean showCustomHead, boolean gecko, Set<String> animations,
+                      boolean showBackpack, boolean showCustomHead, boolean gecko, List<String> animations,
                       boolean defaultAnimations) {
             this.id = id; this.model = model; this.texture = texture; this.scale = scale;
             this.itemScale = itemScale; this.showBackpack = showBackpack; this.showCustomHead = showCustomHead;
             this.gecko = gecko;
-            this.animations = Collections.unmodifiableSet(new HashSet<String>(animations));
+            this.animations = Collections.unmodifiableList(new ArrayList<String>(animations));
+            this.profile = new LegacyAnimationProfile(gecko, this.animations);
             this.defaultAnimations = defaultAnimations;
         }
 
         /** Mirrors MaidModelInfo.decorate(): an empty non-Gecko list receives the source default animation set. */
         public boolean usesAnimation(String path, boolean partOfDefaultSet) {
-            return animations.contains(path) || (!gecko && defaultAnimations && partOfDefaultSet);
+            return profile.animations.contains(path);
         }
+    }
+    public static final class Resolved {
+        public final Entry entry;
+        public final LegacyBedrockModel model;
+        private Resolved(Entry entry, LegacyBedrockModel model) { this.entry = entry; this.model = model; }
     }
 }

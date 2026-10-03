@@ -79,7 +79,7 @@ public final class BlockJoy extends BlockContainer {
             EntitySit sit = new EntitySit(world, x + 0.5D, y + getSitYOffset(), z + 0.5D,
                     getJoyType(), x, y, z);
             sit.rotationYaw = (world.getBlockMetadata(x, y, z) & 3) * 90.0F + getSitYawOffset();
-            world.spawnEntityInWorld(sit);
+            if (!world.spawnEntityInWorld(sit)) return true;
             joy.setSitEntity(sit);
             player.mountEntity(sit);
         }

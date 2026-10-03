@@ -11,16 +11,17 @@ import java.util.Map;
 
 /** Shared static maid preview used by statue and garage-kit tile renderers. */
 final class RenderMaidDisplayTile {
-    private static final Map<String, CachedMaid> CACHE = new HashMap<String, CachedMaid>();
+    private static final Map<TileEntity, java.lang.ref.WeakReference<CachedMaid>> CACHE =
+            new java.util.WeakHashMap<TileEntity, java.lang.ref.WeakReference<CachedMaid>>();
 
     private RenderMaidDisplayTile() { }
 
     static void render(TileEntity tile, NBTTagCompound data, double x, double y, double z,
                        int facing, float scale) {
         if (tile.getWorldObj() == null || data == null || data.hasNoTags()) return;
-        String key = tile.getWorldObj().provider.dimensionId + ":" + tile.xCoord + ":" + tile.yCoord + ":" + tile.zCoord;
         String fingerprint = data.toString();
-        CachedMaid cached = CACHE.get(key);
+        java.lang.ref.WeakReference<CachedMaid> reference = CACHE.get(tile);
+        CachedMaid cached = reference == null ? null : reference.get();
         if (cached == null || !cached.fingerprint.equals(fingerprint)) {
             EntityMaid maid = new EntityMaid(tile.getWorldObj());
             try {
@@ -30,7 +31,7 @@ final class RenderMaidDisplayTile {
             }
             maid.ticksExisted = 0;
             cached = new CachedMaid(fingerprint, maid);
-            CACHE.put(key, cached);
+            CACHE.put(tile, new java.lang.ref.WeakReference<CachedMaid>(cached));
         }
 
         EntityMaid maid = cached.maid;
