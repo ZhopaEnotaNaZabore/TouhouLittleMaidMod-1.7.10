@@ -37,5 +37,6 @@ public final class NetworkHandler {
         channel.registerMessage(MessageMaidBeaconAction.Handler.class, MessageMaidBeaconAction.class, 9, Side.SERVER);
         channel.registerMessage(MessagePlayerPower.Handler.class, MessagePlayerPower.class, 10, Side.CLIENT);
         channel.registerMessage(MessageMaidAction.Handler.class, MessageMaidAction.class, 11, Side.CLIENT);
+        channel.registerMessage(com.github.tartaricacid.touhoulittlemaid.network.message.MessageMaidSkin.Handler.class, com.github.tartaricacid.touhoulittlemaid.network.message.MessageMaidSkin.class, 12, Side.SERVER);
     }
 }

@@ -17,7 +17,7 @@ public final class TaskMilk implements IMaidTask {
     @Override
     @SuppressWarnings("unchecked")
     public void tick(EntityMaid maid) {
-        if (maid.isSitting() || !maid.isPeriodicTick(40) || !hasOutputSpace(maid)) return;
+        if (maid.worldObj.isRemote || !maid.isEntityAlive() || maid.isMaidSleeping() || !maid.isWorkingNow() || maid.isSitting() || !maid.isPeriodicTick(40) || !hasOutputSpace(maid)) return;
         int bucketSlot = maid.findInventorySlot(Items.bucket);
         if (bucketSlot < 0) return;
         List<EntityCow> cows = maid.worldObj.getEntitiesWithinAABB(
@@ -26,21 +26,24 @@ public final class TaskMilk implements IMaidTask {
         double nearest = Double.MAX_VALUE;
         for (EntityCow cow : cows) {
             double distance = maid.getDistanceSqToEntity(cow);
-            if (!cow.isChild() && distance < nearest
+            if (cow.isEntityAlive() && !cow.isChild() && maid.canEntityBeSeen(cow) && distance < nearest
                     && maid.isPositionWithinRestriction(cow.posX, cow.posY, cow.posZ)) {
                 target = cow;
                 nearest = distance;
             }
         }
         if (target == null) return;
-        if (nearest > 6.25D) {
+        maid.getLookHelper().setLookPositionWithEntity(target,30,30);
+        if (nearest >= 4.0D) {
             maid.getNavigator().tryMoveToEntityLiving(target, 0.65D);
             return;
         }
-        maid.takeOneFromSlot(bucketSlot);
+        ItemStack bucket=maid.takeOneFromSlot(bucketSlot);
+        if(bucket==null)return;
         ItemStack remaining = maid.addToMaidInventory(new ItemStack(Items.milk_bucket));
         if (remaining != null) maid.entityDropItem(remaining, 0.0F);
-        maid.swingItem();
+        maid.workSwing(bucket);
+        maid.worldObj.playSoundAtEntity(target,"mob.cow.say",.5F,1F);
     }
 
     private boolean hasOutputSpace(EntityMaid maid) {

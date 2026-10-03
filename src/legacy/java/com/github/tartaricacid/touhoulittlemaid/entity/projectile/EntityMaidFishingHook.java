@@ -21,6 +21,7 @@ public final class EntityMaidFishingHook extends Entity {
     private static final int WATCHER_ROD_SLOT = 12;
     private int waitTime;
     private int life;
+    private int biteDelay;
     private String ownerUuid = "";
 
     public EntityMaidFishingHook(World world) {
@@ -80,11 +81,17 @@ public final class EntityMaidFishingHook extends Entity {
         if (water) {
             motionX *= 0.3D;
             motionZ *= 0.3D;
-            motionY += (0.05D - motionY) * 0.2D;
-            if (!worldObj.isRemote && --waitTime <= 0) {
-                dataWatcher.updateObject(WATCHER_BITING, (byte) 1);
-                motionY = -0.2D;
-                catchFish(maid);
+            life=0;
+            double surface=(worldObj.getBlock(x,y,z).getMaterial()==Material.water?y:y-1)+.85D;
+            motionY=MathHelper.clamp_double((surface-posY)*.2D,-.08D,.08D);
+            if (!worldObj.isRemote) {
+                if(isBiting()) {
+                    motionY=-.025D;
+                    if(--biteDelay<=0){catchFish(maid);return;}
+                } else if (--waitTime<=0) {
+                    dataWatcher.updateObject(WATCHER_BITING,(byte)1);biteDelay=10;
+                    worldObj.playSoundAtEntity(this,"random.splash",.25F,1F);
+                }
             }
         } else {
             motionY -= 0.03D;
@@ -99,7 +106,7 @@ public final class EntityMaidFishingHook extends Entity {
     private void catchFish(EntityMaid maid) {
         int rodSlot = dataWatcher.getWatchableObjectInt(WATCHER_ROD_SLOT);
         ItemStack rod = getRod(maid, rodSlot);
-        if (rod == null || rod.getItem() != Items.fishing_rod) {
+        if (rod == null || !(rod.getItem() instanceof net.minecraft.item.ItemFishingRod)) {
             setDead();
             return;
         }
@@ -109,6 +116,8 @@ public final class EntityMaidFishingHook extends Entity {
         if(caught==null)caught=new ItemStack(Items.fish);
         ItemStack remaining = maid.addToMaidInventory(caught);
         if (remaining != null) maid.entityDropItem(remaining, 0.0F);
+        worldObj.spawnEntityInWorld(new net.minecraft.entity.item.EntityXPOrb(
+                worldObj,maid.posX,maid.posY+.5D,maid.posZ,rand.nextInt(6)+1));
         rod.damageItem(1, maid);
         if (rodSlot == EQUIPPED_ROD_SLOT) {
             if (rod.stackSize <= 0) maid.getMaidEquipmentInventory().setInventorySlotContents(0, null);
@@ -123,15 +132,15 @@ public final class EntityMaidFishingHook extends Entity {
     }
 
     private ItemStack getRod(EntityMaid maid, int rodSlot) {
-        if (rodSlot == EQUIPPED_ROD_SLOT)
-            return maid.getMaidEquipmentInventory().getStackInSlot(0);
-        return rodSlot >= 0 ? maid.getStackInLogicalSlot(rodSlot) : null;
+        ItemStack rod=rodSlot==EQUIPPED_ROD_SLOT ? maid.getMaidEquipmentInventory().getStackInSlot(0)
+                : rodSlot>=0 ? maid.getStackInLogicalSlot(rodSlot) : null;
+        return rod!=null && rod.stackSize>0 && rod.getItem() instanceof net.minecraft.item.ItemFishingRod ? rod : null;
     }
 
     @Override
     public void setDead() {
         EntityMaid maid = getMaidOwner();
-        if (maid != null) maid.setFishingHookActive(false);
+        if (!worldObj.isRemote && maid != null) maid.setFishingHookActive(false);
         super.setDead();
     }
 
@@ -141,6 +150,7 @@ public final class EntityMaidFishingHook extends Entity {
         dataWatcher.updateObject(WATCHER_ROD_SLOT, tag.getInteger("RodSlot"));
         waitTime = tag.getInteger("WaitTime");
         life = tag.getInteger("Life");
+        biteDelay=MathHelper.clamp_int(tag.getInteger("BiteDelay"),0,10);
         ownerUuid = tag.getString("MaidOwnerUUID");
         dataWatcher.updateObject(WATCHER_BITING, tag.getBoolean("Biting") ? (byte)1 : (byte)0);
     }
@@ -151,6 +161,7 @@ public final class EntityMaidFishingHook extends Entity {
         tag.setInteger("RodSlot", dataWatcher.getWatchableObjectInt(WATCHER_ROD_SLOT));
         tag.setInteger("WaitTime", waitTime);
         tag.setInteger("Life", life);
+        tag.setInteger("BiteDelay",biteDelay);
         tag.setString("MaidOwnerUUID", ownerUuid);
         tag.setBoolean("Biting", isBiting());
     }

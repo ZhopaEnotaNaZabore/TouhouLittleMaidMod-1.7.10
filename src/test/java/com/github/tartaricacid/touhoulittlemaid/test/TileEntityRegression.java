@@ -94,5 +94,9 @@ public final class TileEntityRegression {
         MaidFeedRegression.run();
         MaidFurnaceRegression.run();
         MaidTankRegression.run();
+        MaidBaubleRegression.run();
+        MaidDamageRegression.run();
+        MaidSkinRegression.run();
+        MaidProfessionRegression.run();
     }
 }

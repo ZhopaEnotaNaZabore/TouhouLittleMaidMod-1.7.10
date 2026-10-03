@@ -46,7 +46,7 @@ public final class MaidActionState {
     public boolean expire(int tick) { return !kind.isEmpty() && !using(tick) && stopUse(); }
     public void clear() { stopUse(); swingDuration = 0; revision++; }
     private static boolean validKind(String s) {
-        return "eat".equals(s) || "drink".equals(s) || "bow".equals(s) || "gohei".equals(s) || "block".equals(s);
+        return "crossbow".equals(s) || "spear".equals(s) || "work".equals(s) || "eat".equals(s) || "drink".equals(s) || "bow".equals(s) || "gohei".equals(s) || "block".equals(s);
     }
     public NBTTagCompound snapshot(int tick) {
         NBTTagCompound n = new NBTTagCompound();

@@ -16,7 +16,7 @@ public final class TaskTorch implements IMaidTask {
 
     @Override
     public void tick(EntityMaid maid) {
-        if (maid.isSitting() || !maid.isPeriodicTick(20)) return;
+        if (maid.worldObj.isRemote || maid.isSitting() || !maid.isPeriodicTick(20)) return;
         int torchSlot = maid.findInventorySlot(Item.getItemFromBlock(Blocks.torch));
         if (torchSlot < 0) return;
         Target target = findDarkPosition(maid);
@@ -26,11 +26,11 @@ public final class TaskTorch implements IMaidTask {
             return;
         }
         if (canPlaceAt(maid, target.x, target.y, target.z)) {
-            maid.worldObj.setBlock(target.x, target.y + 1, target.z, Blocks.torch, 0, 3);
+            if(!maid.worldObj.setBlock(target.x, target.y + 1, target.z, Blocks.torch, 0, 3))return;
             maid.takeOneFromSlot(torchSlot);
             maid.worldObj.playSoundEffect(target.x + 0.5D, target.y + 1, target.z + 0.5D,
                     "dig.wood", 1.0F, 0.8F);
-            maid.swingItem();
+            maid.workSwing(new net.minecraft.item.ItemStack(Blocks.torch));
         }
     }
 

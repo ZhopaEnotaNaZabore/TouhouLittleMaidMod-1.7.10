@@ -38,7 +38,7 @@ public final class TaskFeedAnimal implements IMaidTask {
         int foodSlot = -1;
         double nearest = Double.MAX_VALUE;
         for (EntityAnimal animal : animals) {
-            if (!animal.isEntityAlive() || animal.getGrowingAge() != 0 || animal.isInLove()
+            if (!animal.isEntityAlive() || !maid.canEntityBeSeen(animal) || animal.getGrowingAge() != 0 || animal.isInLove()
                     || !maid.isPositionWithinRestriction(animal.posX, animal.posY, animal.posZ)) continue;
             int slot = findBreedingFood(maid, animal);
             double distance = maid.getDistanceSqToEntity(animal);
@@ -53,9 +53,11 @@ public final class TaskFeedAnimal implements IMaidTask {
             maid.getNavigator().tryMoveToEntityLiving(target, 0.65D);
             return;
         }
-        if (maid.takeOneFromSlot(foodSlot) == null) return;
+        maid.getLookHelper().setLookPositionWithEntity(target,30,30);
+        ItemStack food=maid.takeOneFromSlot(foodSlot);
+        if (food == null) return;
         target.func_146082_f((EntityPlayer) ownerEntity);
-        maid.swingItem();
+        maid.workSwing(food);
     }
 
     private void updateCullTarget(EntityMaid maid, List<EntityAnimal> animals) {
@@ -71,7 +73,7 @@ public final class TaskFeedAnimal implements IMaidTask {
         EntityAnimal nearestTarget = null;
         double nearest = Double.MAX_VALUE;
         for (EntityAnimal animal : animals) {
-            if (!animal.isEntityAlive() || animal.getGrowingAge() != 0 || animal.isInLove()
+            if (!animal.isEntityAlive() || !maid.canEntityBeSeen(animal) || animal.getGrowingAge() != 0 || animal.isInLove()
                     || !maid.isPositionWithinRestriction(animal.posX, animal.posY, animal.posZ)
                     || findBreedingFood(maid, animal) < 0) continue;
             double distance = maid.getDistanceSqToEntity(animal);

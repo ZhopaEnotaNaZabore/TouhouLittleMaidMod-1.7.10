@@ -50,6 +50,16 @@ abstract class AbstractGuiMaid extends GuiContainer {
         addTab(100, 0, 94, 107);
         addTab(101, 3, 119, 132);
         addTab(102, 2, 144, 157);
+        buttonList.add(new SkinButton(guiLeft+62,guiTop+14));
+    }
+
+    private static final class SkinButton extends GuiButton {
+        SkinButton(int x,int y){super(103,x,y,9,9,"");}
+        @Override public void drawButton(net.minecraft.client.Minecraft mc,int mx,int my){if(!visible)return;
+            boolean hover=mx>=xPosition&&mx<xPosition+width&&my>=yPosition&&my<yPosition+height;
+            mc.getTextureManager().bindTexture(BUTTONS);GL11.glColor4f(1,1,1,1);
+            drawTexturedModalRect(xPosition,yPosition,72,hover?53:43,9,9);
+        }
     }
 
     private void addTab(int id, int targetTab, int x, int textureX) {
@@ -59,6 +69,7 @@ abstract class AbstractGuiMaid extends GuiContainer {
 
     @Override
     protected void actionPerformed(GuiButton button) {
+        if (button.id == 103) {mc.displayGuiScreen(new GuiMaidSkins(maid));return;}
         if (button.id >= 100 && button.id <= 102) {
             int target = button.id == 100 ? 0 : button.id == 101 ? 3 : 2;
             if (target != currentTab) {
@@ -93,6 +104,9 @@ abstract class AbstractGuiMaid extends GuiContainer {
         float previousViewYaw=net.minecraft.client.renderer.entity.RenderManager.instance.playerViewY;
         try(com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyMaidPreviewContext preview=
                     com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyMaidPreviewContext.enter(maid,partialTicks)){
+            double sx=mc.displayWidth/(double)width, sy=mc.displayHeight/(double)height;
+            GL11.glEnable(GL11.GL_SCISSOR_TEST);
+            GL11.glScissor((int)((guiLeft+5)*sx),(int)((height-guiTop-108)*sy),(int)(73*sx),(int)(103*sy));
             GuiInventory.func_147046_a(guiLeft + 40, guiTop + 106, 38,
                     guiLeft + 40 - mouseX, guiTop + 62 - mouseY, maid);
         } finally {
@@ -125,18 +139,14 @@ abstract class AbstractGuiMaid extends GuiContainer {
 
     private void drawBaseStatus() {
         double health = maid.getMaxHealth() <= 0 ? 0 : maid.getHealth() / maid.getMaxHealth();
-        drawBar(7, 115, health, 0xFFE93C3C);
-        drawBar(7, 126, Math.min(1.0, maid.getTotalArmorValue() / 20.0), 0xFFB7B7B7);
-        drawBar(7, 137, (maid.getMaidExperience() % 120) / 120.0, 0xFF69C850);
-        drawBar(7, 148, maid.getFavorabilityManager().getLevelPercent(), 0xFFFF8AC7);
+        double[] values={health,maid.getTotalArmorValue()/20.0,(maid.getMaidExperience()%120)/120.0,maid.getFavorabilityManager().getLevelPercent()};
         mc.getTextureManager().bindTexture(SIDE);
-        for (int i = 0; i < 4; i++) drawTexturedModalRect(guiLeft + 53, guiTop + 113 + i * 11, i * 9, 0, 9, 9);
-    }
-
-    private void drawBar(int x, int y, double value, int color) {
-        drawRect(guiLeft + x, guiTop + y, guiLeft + x + 43, guiTop + y + 5, 0xFF333333);
-        drawRect(guiLeft + x, guiTop + y, guiLeft + x + (int) (43 * Math.max(0, Math.min(1, value))),
-                guiTop + y + 5, color);
+        for(int i=0;i<4;i++){
+            int y=guiTop+113+11*i;
+            drawTexturedModalRect(guiLeft+5,y,0,9,47,9);
+            drawTexturedModalRect(guiLeft+7,y+2,2,18+5*i,(int)(43*Math.max(0,Math.min(1,values[i]))),5);
+            drawTexturedModalRect(guiLeft+53,y,i*9,0,9,9);
+        }
     }
 
     @Override
@@ -159,7 +169,15 @@ abstract class AbstractGuiMaid extends GuiContainer {
     @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         super.drawScreen(mouseX, mouseY, partialTicks);
         int x = mouseX - guiLeft, y = mouseY - guiTop;
-        if (x >= 5 && x < 78 && y >= 5 && y < 108)
+        for(Object value:buttonList){
+            GuiButton button=(GuiButton)value;
+            if(button.id<100||button.id>103||!button.visible)continue;
+            if(mouseX>=button.xPosition&&mouseX<button.xPosition+button.width&&mouseY>=button.yPosition&&mouseY<button.yPosition+button.height){
+                String key=button.id==103?"gui.touhou_little_maid.button.skin":button.id==100?"container.inventory":button.id==101?"gui.touhou_little_maid.task_configuration":"gui.touhou_little_maid.equipment";
+                drawHoveringText(java.util.Collections.singletonList(net.minecraft.util.StatCollector.translateToLocal(key)),mouseX,mouseY,fontRendererObj);
+            }
+        }
+        if (x >= 5 && x < 78 && y >= 5 && y < 108 && !(x>=62&&x<71&&y>=14&&y<23))
             drawHoveringText(java.util.Collections.singletonList(maid.getCommandSenderName()), mouseX, mouseY, fontRendererObj);
         if (x >= 5 && x < 78 && y >= 113 && y < 157) {
             int row = Math.min(3, (y - 113) / 11);

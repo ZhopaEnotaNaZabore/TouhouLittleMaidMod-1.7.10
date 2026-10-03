@@ -94,6 +94,7 @@ public final class MultiblockRegression {
         @Override public boolean canBlockSeeTheSky(int x,int y,int z){return true;}
         @Override public boolean setBlockMetadataWithNotify(int x,int y,int z,int meta,int flags){if(refuseFarmChange)return false;put(x,y,z,getBlock(x,y,z),meta);return true;}
         @Override public void playAuxSFX(int id,int x,int y,int z,int data){}
+        Entity lastSpawn;
         Map<String,State> states;Map<String,TileEntity> tiles;List<EntityItem> drops;int placed,refuseAt;long testTime;boolean testCollision,testEntityCollision,testLiquid,testUnloaded;
         @Override public java.util.List getCollidingBoundingBoxes(Entity e,net.minecraft.util.AxisAlignedBB box){return testCollision?java.util.Collections.singletonList(box):java.util.Collections.emptyList();}
         @Override public boolean checkNoEntityCollision(net.minecraft.util.AxisAlignedBB box,Entity e){return !testEntityCollision;}
@@ -119,14 +120,16 @@ public final class MultiblockRegression {
             if(b.hasTileEntity(m)){TileEntity t=b.createTileEntity(this,m);t.xCoord=x;t.yCoord=y;t.zCoord=z;t.setWorldObj(this);tiles.put(key(x,y,z),t);}
             return true;
         }
-        @Override public boolean spawnEntityInWorld(Entity e){if(e instanceof EntityItem)drops.add((EntityItem)e);return true;}
+        @Override public boolean spawnEntityInWorld(Entity e){lastSpawn=e;if(e instanceof EntityItem)drops.add((EntityItem)e);return true;}
         @Override public void notifyBlocksOfNeighborChange(int x,int y,int z,Block b){}
         @Override public void markBlockForUpdate(int x,int y,int z){}
         @Override public void markTileEntityChunkModified(int x,int y,int z,TileEntity t){}
         @Override public void playSoundEffect(double x,double y,double z,String sound,float v,float p){}
+        @Override public void setEntityState(Entity entity,byte state){}
         @Override public void playSoundAtEntity(Entity entity,String sound,float volume,float pitch){}
         @Override protected IChunkProvider createChunkProvider(){return null;}
         @Override protected int func_152379_p(){return 0;}
-        @Override public Entity getEntityByID(int id){return null;}
+        @Override public java.util.List getEntitiesWithinAABB(Class type,net.minecraft.util.AxisAlignedBB box){java.util.List result=new java.util.ArrayList();for(Object value:loadedEntityList)if(type.isInstance(value) && ((Entity)value).boundingBox.intersectsWith(box))result.add(value);return result;}
+        @Override public Entity getEntityByID(int id){for(Object value:loadedEntityList)if(((Entity)value).getEntityId()==id)return (Entity)value;return null;}
     }
 }

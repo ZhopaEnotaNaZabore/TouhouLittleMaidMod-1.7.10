@@ -31,6 +31,9 @@ import net.minecraft.item.Item;
 import java.lang.reflect.Field;
 
 public final class ModItems {
+    public static final com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun ANIMATION_RIFLE = new com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun("rifle");
+    public static final com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun ANIMATION_PISTOL = new com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun("pistol");
+    public static final com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun ANIMATION_RPG = new com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun("rpg");
     public static final ItemExtinguisher EXTINGUISHER = new ItemExtinguisher();
     public static final Item OWNER_CONVERSION_TOOL = simpleItem("owner_conversion_tool", 1);
     public static final ItemPowerPoint POWER_POINT = new ItemPowerPoint();
@@ -99,6 +102,9 @@ public final class ModItems {
         GameRegistry.registerItem(BROOM, "broom");
         GameRegistry.registerItem(SPAWN_BOX, "spawn_box");
         GameRegistry.registerItem(FILM, "film");
+        GameRegistry.registerItem(ANIMATION_RIFLE, "animation_rifle");
+        GameRegistry.registerItem(ANIMATION_PISTOL, "animation_pistol");
+        GameRegistry.registerItem(ANIMATION_RPG, "animation_rpg");
         GameRegistry.registerItem(DROWN_PROTECT_BAUBLE, "drown_protect_bauble");
         GameRegistry.registerItem(EXPLOSION_PROTECT_BAUBLE, "explosion_protect_bauble");
         GameRegistry.registerItem(ULTRAMARINE_ORB_ELIXIR, "ultramarine_orb_elixir");

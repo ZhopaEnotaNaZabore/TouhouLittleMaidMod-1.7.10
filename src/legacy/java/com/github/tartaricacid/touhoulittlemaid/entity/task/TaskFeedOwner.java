@@ -34,7 +34,10 @@ public final class TaskFeedOwner implements IMaidTask {
             if(!maid.isRiding()) maid.getNavigator().tryMoveToEntityLiving(owner,.7D);
             return;
         }
-        if(feedFrom(maid,owner,selected,selectedSlot)) maid.swingItem();
+        if (!maid.canEntityBeSeen(owner)) return;
+        maid.getLookHelper().setLookPositionWithEntity(owner,30,30);
+        ItemStack food=selected.getStackInSlot(selectedSlot).copy();
+        if(feedFrom(maid,owner,selected,selectedSlot)) maid.workSwing(food);
     }
 
     private static int priority(ItemStack stack,EntityPlayer owner) {

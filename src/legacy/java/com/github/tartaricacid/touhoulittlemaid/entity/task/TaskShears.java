@@ -18,20 +18,21 @@ public final class TaskShears implements IMaidTask {
     @Override
     @SuppressWarnings("unchecked")
     public void tick(EntityMaid maid) {
-        if (maid.isSitting() || !ensureMainhandShears(maid) || !maid.isPeriodicTick(20)) return;
+        if (maid.worldObj.isRemote || maid.isMaidSleeping() || !maid.isWorkingNow() || maid.isSitting() || !ensureMainhandShears(maid) || !maid.isPeriodicTick(20)) return;
         List<EntitySheep> sheep = maid.worldObj.getEntitiesWithinAABB(
                 EntitySheep.class, maid.boundingBox.expand(10.0D, 4.0D, 10.0D));
         EntitySheep target = null;
         double nearest = Double.MAX_VALUE;
         for (EntitySheep candidate : sheep) {
             double distance = maid.getDistanceSqToEntity(candidate);
-            if (!candidate.getSheared() && !candidate.isChild() && distance < nearest
+            if (candidate.isEntityAlive() && maid.canEntityBeSeen(candidate) && !candidate.getSheared() && !candidate.isChild() && distance < nearest
                     && maid.isPositionWithinRestriction(candidate.posX, candidate.posY, candidate.posZ)) {
                 target = candidate;
                 nearest = distance;
             }
         }
         if (target == null) return;
+        maid.getLookHelper().setLookPositionWithEntity(target,30,30);
         if (nearest > 6.25D) {
             maid.getNavigator().tryMoveToEntityLiving(target, 0.65D);
             return;

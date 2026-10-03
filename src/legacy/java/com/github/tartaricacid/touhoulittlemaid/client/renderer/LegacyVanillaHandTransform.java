@@ -2,6 +2,7 @@ package com.github.tartaricacid.touhoulittlemaid.client.renderer;
 
 import net.minecraft.item.*;
 import net.minecraft.init.Items;
+import com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun;
 import org.lwjgl.opengl.GL11;
 
 /** Adapts 1.7 ItemRenderer's icon-space transform to the modern locator grip.
@@ -11,7 +12,7 @@ public final class LegacyVanillaHandTransform {
     private LegacyVanillaHandTransform() { }
     public static void apply(ItemStack stack, boolean left) {
         Item item=stack.getItem();
-        apply(item==Items.bow?Kind.BOW:item instanceof ItemSword || item instanceof ItemTool || item instanceof ItemHoe?Kind.HANDHELD:Kind.GENERATED,left);
+        apply(ItemAnimationGun.isBowWeapon(item)?Kind.BOW:item instanceof ItemSword || item instanceof ItemTool || item instanceof ItemHoe?Kind.HANDHELD:Kind.GENERATED,left);
     }
     public static void apply(Kind kind, boolean left) {
         if(kind==Kind.BOW) {

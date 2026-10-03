@@ -10,7 +10,7 @@ import java.util.ArrayList;
 abstract class AbstractHarvestTask implements IMaidTask {
     @Override
     public final void tick(EntityMaid maid) {
-        if (maid.isSitting() || !maid.isPeriodicTick(20)) return;
+        if (maid.worldObj.isRemote || maid.isSitting() || !maid.isPeriodicTick(20)) return;
         Target target = findNearest(maid);
         if (target == null) return;
         if (maid.getDistanceSq(target.x + 0.5D, target.y, target.z + 0.5D) > closeDistanceSq()) {
@@ -29,7 +29,7 @@ abstract class AbstractHarvestTask implements IMaidTask {
     protected void harvest(EntityMaid maid, Target target) {
         ArrayList<ItemStack> drops = target.block.getDrops(
                 maid.worldObj, target.x, target.y, target.z, target.metadata, 0);
-        maid.worldObj.setBlockToAir(target.x, target.y, target.z);
+        if(!maid.worldObj.setBlockToAir(target.x, target.y, target.z))return;
         playHarvestEffect(maid, target);
         insertDrops(maid, drops);
     }

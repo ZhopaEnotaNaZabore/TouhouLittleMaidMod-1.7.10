@@ -24,7 +24,7 @@ public final class TaskCocoa extends AbstractHarvestTask {
         ArrayList<ItemStack> drops = target.block.getDrops(
                 maid.worldObj, target.x, target.y, target.z, target.metadata, 0);
         consumeCocoaBean(drops);
-        maid.worldObj.setBlockMetadataWithNotify(target.x, target.y, target.z, target.metadata & 3, 3);
+        if(!maid.worldObj.setBlockMetadataWithNotify(target.x, target.y, target.z, target.metadata & 3, 3))return;
         playHarvestEffect(maid, target);
         insertDrops(maid, drops);
     }

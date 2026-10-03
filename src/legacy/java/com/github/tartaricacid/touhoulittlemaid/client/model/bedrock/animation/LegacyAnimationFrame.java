@@ -15,6 +15,7 @@ public final class LegacyAnimationFrame {
     public boolean onGround = true, boat, carried;
     public long uuidSeed;
     public String task = "", joy = "", use = "", mainCategory = "", offCategory = "";
+    public String gunType = "";
     public String mainId = "", offId = "";
     public int dimension;
     public int swingSequence, useSequence;

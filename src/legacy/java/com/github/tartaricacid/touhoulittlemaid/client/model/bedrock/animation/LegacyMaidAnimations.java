@@ -62,7 +62,9 @@ public final class LegacyMaidAnimations {
                 arm(p.get("armLeft"), true, f); arm(p.get("armRight"), false, f);
             } else if ("arm/swing.js".equals(key)) {
                 if (f.ranged && !f.mainId.isEmpty()) {
-                    xy(p.get("armLeft"), -1.396F, .785F); xy(p.get("armRight"), -1.396F, -.174F);
+                    if("spear".equals(f.use)) xy(p.get("armRight"), -3.14F+f.pitch*DEG,0);
+                    else if("crossbow".equals(f.use)||"charged_crossbow".equals(f.mainCategory)){xy(p.get("armLeft"),-1.3F+f.pitch*DEG,.6F);xy(p.get("armRight"),-1.57F+f.pitch*DEG,-.3F);}
+                    else {xy(p.get("armLeft"), -1.396F, .785F); xy(p.get("armRight"), -1.396F, -.174F);}
                 }
             } else if ("arm/vertical.js".equals(key)) {
                 vertical(p, "armLeftVertical", "armLeft"); vertical(p, "armRightVertical", "armRight");

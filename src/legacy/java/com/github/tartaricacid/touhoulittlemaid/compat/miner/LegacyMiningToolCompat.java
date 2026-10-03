@@ -1,5 +1,6 @@
 package com.github.tartaricacid.touhoulittlemaid.compat.miner;
 
+import com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct;
 import cpw.mods.fml.common.registry.GameRegistry;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
@@ -15,6 +16,8 @@ public final class LegacyMiningToolCompat {
 
     public static boolean isMiningTool(ItemStack stack) {
         if (stack == null || stack.getItem() == null) return false;
+        if(LegacyTConstruct.tool(stack) && !LegacyTConstruct.usable(stack))return false;
+        if(LegacyTConstruct.mining(stack))return true;
         try {
             Set<String> classes = stack.getItem().getToolClasses(stack);
             if (classes != null && (classes.contains("pickaxe") || classes.contains("hammer"))) return true;
@@ -35,6 +38,11 @@ public final class LegacyMiningToolCompat {
     public static boolean canHarvest(ItemStack stack, Block block, int metadata) {
         if (!isMiningTool(stack) || block == null) return false;
         try {
+            if (LegacyTConstruct.tool(stack)) {
+                String required=block.getHarvestTool(metadata);
+                if(required!=null)return stack.getItem().getHarvestLevel(stack,required)>=block.getHarvestLevel(metadata);
+                return stack.getItem().getDigSpeed(stack,block,metadata)>1;
+            }
             if (stack.getItem().canHarvestBlock(block, stack)) return true;
             String required = block.getHarvestTool(metadata);
             return required == null ? stack.getItem().getDigSpeed(stack, block, metadata) > 1.0F

@@ -122,16 +122,20 @@ public final class EntityPowerPoint extends Entity {
             List maids = worldObj.getEntitiesWithinAABB(EntityMaid.class, boundingBox.expand(0.5D, 0.5D, 0.5D));
             for (Object object : maids) {
                 EntityMaid maid = (EntityMaid) object;
-                if (maid.isTamed() && maid.isPickupEnabled() && !maid.isSitting()) {
-                    maid.setMaidExperience(maid.getMaidExperience() + Math.max(1, getValue() / 4));
-                    worldObj.playSoundAtEntity(maid, "random.orb", 0.1F, 1.2F);
-                    setDead();
-                    break;
-                }
+                if (!maid.isSitting() && pickupByMaid(maid)) break;
             }
         }
 
         if (++age >= 6000) setDead();
+    }
+
+    public boolean pickupByMaid(EntityMaid maid) {
+        if (worldObj.isRemote || isDead || pickupDelay > 0 || !maid.isEntityAlive()
+                || !maid.isTamed() || !maid.isPickupEnabled()) return false;
+        maid.setMaidExperience(maid.getMaidExperience() + Math.max(1, getValue() / 4));
+        worldObj.playSoundAtEntity(maid, "random.orb", 0.1F, 1.2F);
+        setDead();
+        return true;
     }
 
     @Override

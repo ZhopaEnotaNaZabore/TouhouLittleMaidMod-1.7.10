@@ -38,6 +38,20 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
 
     private LegacyMaidModelRegistry() {}
 
+    private final Map<String,String> translations=new HashMap<String,String>();
+    private String language="";
+    public String translate(String key){
+        String current=Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode().toLowerCase(Locale.ROOT);
+        if(!current.equals(language)){
+            language=current;translations.clear();IResourceManager manager=Minecraft.getMinecraft().getResourceManager();
+            for(String lang:new String[]{"en_us",current})for(String domain:new ArrayList<String>(manager.getResourceDomains()))try{
+                JsonObject json=readJson(manager,new ResourceLocation(domain,"lang/"+lang+".json"));
+                for(Map.Entry<String,JsonElement> e:json.entrySet())if(e.getValue().isJsonPrimitive())translations.put(e.getKey(),e.getValue().getAsString());
+            }catch(java.io.IOException absent){}catch(RuntimeException invalid){TouhouLittleMaid.LOGGER.warn("Invalid model language in {}",domain);}
+        }
+        String value=translations.get(key);return value==null?key:value;
+    }
+
     public Entry getEntry(String id) {
         ensureLoaded();
         Entry entry = entries.get(id);
@@ -172,18 +186,22 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
                     animations.add(animation.getAsString().indexOf(':') < 0 ? domain + ":" + animation.getAsString() : animation.getAsString());
                 Entry base = new Entry(id, model, texture, scale, itemScale, showBackpack, showCustomHead,
                         gecko, animations, animationList == null || animationList.size() == 0);
+                base.describe(json, root, domain, 0);
                 entries.put(id, base);
 
                 // CustomModelPack.decorate() in the source exposes every extra texture as a
                 // separate selectable model while sharing the same geometry and settings.
                 JsonArray extras = json.getAsJsonArray("extra_textures");
                 if (extras != null) {
+                    int variantIndex=0;
                     for (JsonElement extra : extras) {
                         ResourceLocation extraTexture = resource(extra.getAsString(), idDomain);
                         String extraId = id + "_" + md5(extraTexture.getResourcePath()).toLowerCase(Locale.US);
-                        entries.put(extraId, new Entry(extraId, model, extraTexture, scale, itemScale,
+                        Entry variant = new Entry(extraId, model, extraTexture, scale, itemScale,
                                 showBackpack, showCustomHead, gecko, animations,
-                                animationList == null || animationList.size() == 0));
+                                animationList == null || animationList.size() == 0);
+                        variant.describe(json, root, domain, ++variantIndex);
+                        entries.put(extraId, variant);
                     }
                 }
               } catch (Exception error) {
@@ -221,13 +239,35 @@ public final class LegacyMaidModelRegistry implements IResourceManagerReloadList
 
     @Override
     public void onResourceManagerReload(IResourceManager manager) {
-        loaded = false;
+        loaded = false; language=""; translations.clear();
         entries.clear();
         resolved.clear(); failed.clear(); libraries.clear(); empty = null;
     }
 
     public static final class Entry {
         public final String id;
+        public String packId = "", packName = "", name = "", soundPack = "", author = "", version = "", date = "";
+        public ResourceLocation packIcon;
+        public List<String> description = Collections.emptyList(), packDescription = Collections.emptyList();
+        public boolean easterEgg;
+        public int variant;
+        private void describe(JsonObject json, JsonObject root, String domain, int variant) {
+            this.variant = variant; packId = domain;
+            packName = text(root,"pack_name",domain); name = text(json,"name","{model."+id.replace(':','.')+".name}");
+            soundPack = text(json,"use_sound_pack_id",""); author = text(root,"author","");
+            version = text(root,"version",""); date = text(root,"date","");
+            description = lines(json,"description"); packDescription = lines(root,"description");
+            easterEgg = json.has("easter_egg") && !json.get("easter_egg").isJsonNull();
+            if(root.has("icon")) packIcon=resource(root.get("icon").getAsString(),domain);
+        }
+        private static String text(JsonObject object,String key,String fallback) {
+            if(!object.has(key)||object.get(key).isJsonNull())return fallback;
+            if(object.get(key).isJsonArray()){StringBuilder b=new StringBuilder();for(JsonElement e:object.getAsJsonArray(key)){if(b.length()>0)b.append(", ");b.append(e.getAsString());}return b.toString();}
+            return object.get(key).getAsString();
+        }
+        private static List<String> lines(JsonObject object,String key){
+            List<String> result=new ArrayList<String>();if(object.has(key)&&object.get(key).isJsonArray())for(JsonElement e:object.getAsJsonArray(key))result.add(e.getAsString());return Collections.unmodifiableList(result);
+        }
         public final ResourceLocation model;
         public final ResourceLocation texture;
         public final float scale;

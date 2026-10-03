@@ -12,9 +12,9 @@ public final class TaskBowAttack implements IMaidTask {
 
     @Override
     public void tick(EntityMaid maid) {
-        LegacyTaskEquipUtil.ensureMainhand(maid, Items.bow);
+        LegacyTaskEquipUtil.ensureRangedWeapon(maid);
         if (maid.ticksExisted % 10 == 0) {
-            if (maid.hasBowAndArrow() && !maid.isSitting()) {
+            if (maid.hasRangedWeaponForCurrentTask() && !maid.isSitting()) {
                 CombatTargeting.updateTarget(maid, 16.0D);
             } else {
                 maid.setAttackTarget(null);
@@ -23,7 +23,7 @@ public final class TaskBowAttack implements IMaidTask {
     }
 
     @Override
-    public void onSelected(EntityMaid maid) { LegacyTaskEquipUtil.ensureMainhand(maid, Items.bow); }
+    public void onSelected(EntityMaid maid) { LegacyTaskEquipUtil.ensureRangedWeapon(maid); }
 
     @Override
     public void onDeselected(EntityMaid maid) {

@@ -1,5 +1,6 @@
 package com.github.tartaricacid.touhoulittlemaid.entity.task;
 
+import com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -46,6 +47,18 @@ final class LegacyTaskEquipUtil {
         return true;
     }
 
+    static boolean ensureRangedWeapon(EntityMaid maid) {
+        java.util.function.Predicate<ItemStack> accepted=s->LegacyTConstruct.matchesTask(s,maid.getTaskId())
+                || TaskManager.RANGED_ATTACK_ID.equals(maid.getTaskId()) && s!=null && s.stackSize>0
+                && com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun.isBowWeapon(s.getItem());
+        ItemStack held=maid.getHeldItem();if(accepted.test(held))return true;
+        int slot=maid.findAvailableInventorySlot(accepted);if(slot<0)return false;
+        ItemStack replacement=maid.takeOneFromSlot(slot);if(replacement==null)return false;
+        maid.getMaidEquipmentInventory().setInventorySlotContents(0,replacement);
+        if(held!=null){ItemStack remainder=maid.addToMaidInventory(held);if(remainder!=null)maid.entityDropItem(remainder,0);}
+        maid.getMaidEquipmentInventory().markDirty();return true;
+    }
+
     static boolean ensureMiningTool(EntityMaid maid) {
         ItemStack held = maid.getMaidEquipmentInventory().getStackInSlot(0);
         if (LegacyMiningToolCompat.isMiningTool(held)) return true;
@@ -63,7 +76,8 @@ final class LegacyTaskEquipUtil {
     }
 
     static boolean isAttackWeapon(ItemStack stack) {
-        return stack != null && stack.getItem().getAttributeModifiers(stack)
+        if (LegacyTConstruct.tool(stack)) return LegacyTConstruct.melee(stack);
+        return stack != null && stack.stackSize>0 && stack.getItem().getAttributeModifiers(stack)
                 .containsKey(SharedMonsterAttributes.attackDamage.getAttributeUnlocalizedName());
     }
 

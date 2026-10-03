@@ -3,9 +3,6 @@ package com.github.tartaricacid.touhoulittlemaid.entity.task;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.block.material.Material;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import com.github.tartaricacid.touhoulittlemaid.entity.projectile.EntityMaidFishingHook;
 import com.github.tartaricacid.touhoulittlemaid.entity.item.EntitySit;
@@ -20,11 +17,12 @@ public final class TaskFishing implements IMaidTask {
 
     @Override
     public void tick(EntityMaid maid) {
-        if (maid.isSitting()) return;
-        if (!ensureMainhandFishingRod(maid) || !maid.isPeriodicTick(20)) return;
+        if (maid.worldObj.isRemote || !maid.isEntityAlive() || maid.isSitting() || maid.isMaidSleeping() || !maid.isWorkingNow()) return;
+        if (!ensureMainhandFishingRod(maid)) { onDeselected(maid); return; }
+        if (!maid.isPeriodicTick(20)) return;
         if (hasActiveHook(maid)) return;
         FishingSpot spot = findSpot(maid);
-        if (spot == null) return;
+        if (spot == null) {onDeselected(maid);return;}
         double distance = maid.getDistanceSq(spot.standX + 0.5D, spot.standY, spot.standZ + 0.5D);
         if (distance > 4.0D) {
             maid.getNavigator().tryMoveToXYZ(spot.standX + 0.5D, spot.standY, spot.standZ + 0.5D, 0.6D);
@@ -32,6 +30,7 @@ public final class TaskFishing implements IMaidTask {
         }
 
         if (!ensureFishingSeat(maid, spot)) return;
+        maid.getLookHelper().setLookPosition(spot.waterX+.5D,spot.waterY+.85D,spot.waterZ+.5D,30,30);
 
         EntityMaidFishingHook hook = new EntityMaidFishingHook(maid.worldObj, maid,
                 EntityMaidFishingHook.EQUIPPED_ROD_SLOT,
@@ -47,6 +46,10 @@ public final class TaskFishing implements IMaidTask {
 
     @Override
     public void onDeselected(EntityMaid maid) {
+        if (!maid.worldObj.isRemote) {
+            java.util.List<EntityMaidFishingHook> hooks=maid.worldObj.getEntitiesWithinAABB(EntityMaidFishingHook.class,maid.boundingBox.expand(32,16,32));
+            for(EntityMaidFishingHook hook:hooks)if(hook.getMaidOwner()==maid)hook.setDead();
+        }
         if (maid.ridingEntity instanceof EntitySit
                 && "fishing".equals(((EntitySit) maid.ridingEntity).getJoyType())) {
             maid.mountEntity(null);
@@ -70,8 +73,8 @@ public final class TaskFishing implements IMaidTask {
 
     private boolean ensureMainhandFishingRod(EntityMaid maid) {
         ItemStack held = maid.getMaidEquipmentInventory().getStackInSlot(0);
-        if (held != null && held.getItem() == Items.fishing_rod) return true;
-        int sourceSlot = maid.findInventorySlot(Items.fishing_rod);
+        if (held != null && held.stackSize > 0 && held.getItem() instanceof net.minecraft.item.ItemFishingRod) return true;
+        int sourceSlot = maid.findAvailableInventorySlot(stack -> stack.getItem() instanceof net.minecraft.item.ItemFishingRod);
         if (sourceSlot < 0) return false;
         ItemStack rod = maid.takeOneFromSlot(sourceSlot);
         if (rod == null) return false;
@@ -88,7 +91,7 @@ public final class TaskFishing implements IMaidTask {
     private boolean hasActiveHook(EntityMaid maid) {
         List<EntityMaidFishingHook> hooks = maid.worldObj.getEntitiesWithinAABB(
                 EntityMaidFishingHook.class, maid.boundingBox.expand(32.0D, 16.0D, 32.0D));
-        for (EntityMaidFishingHook hook : hooks) if (hook.getMaidOwner() == maid) return true;
+        for (EntityMaidFishingHook hook : hooks) if (!hook.isDead && hook.getMaidOwner() == maid) return true;
         return false;
     }
 
@@ -101,18 +104,17 @@ public final class TaskFishing implements IMaidTask {
         for (int x = centerX - 8; x <= centerX + 8; x++) {
             for (int y = centerY - 3; y <= centerY + 3; y++) {
                 for (int z = centerZ - 8; z <= centerZ + 8; z++) {
-                    if (maid.worldObj.getBlock(x, y, z).getMaterial() != Material.water
+                    if (!maid.worldObj.blockExists(x,y,z) || !maid.isPositionWithinRestriction(x+.5D,y,z+.5D)
+                            || maid.worldObj.getBlock(x, y, z).getMaterial() != Material.water
                             || !maid.worldObj.isAirBlock(x, y + 1, z)) continue;
                     for (int side = 0; side < 4; side++) {
                         int sx = x + (side == 0 ? 1 : side == 1 ? -1 : 0);
                         int sz = z + (side == 2 ? 1 : side == 3 ? -1 : 0);
-                        if (!maid.worldObj.getBlock(sx, y - 1, sz).getMaterial().isSolid()
-                                || !maid.worldObj.isAirBlock(sx, y, sz)
-                                || !maid.isPositionWithinRestriction(sx + 0.5D, y, sz + 0.5D)) continue;
-                        double distance = maid.getDistanceSq(sx + 0.5D, y, sz + 0.5D);
-                        if (distance < nearestDistance) {
-                            nearest = new FishingSpot(sx, y, sz, x, y, z);
-                            nearestDistance = distance;
+                        for(int standY=y;standY<=y+1;standY++) {
+                            if (!maid.isPositionWithinRestriction(sx+.5D,standY,sz+.5D)
+                                    || !com.github.tartaricacid.touhoulittlemaid.entity.ai.MaidTeleportSafety.canStand(maid.worldObj,maid,sx+.5D,standY,sz+.5D)) continue;
+                            double distance=maid.getDistanceSq(sx+.5D,standY,sz+.5D);
+                            if(distance<nearestDistance){nearest=new FishingSpot(sx,standY,sz,x,y,z);nearestDistance=distance;}
                         }
                     }
                 }

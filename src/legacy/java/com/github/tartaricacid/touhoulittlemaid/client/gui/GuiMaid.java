@@ -27,9 +27,9 @@ public final class GuiMaid extends AbstractGuiMaid {
     public void initGui() {
         super.initGui();
         buttonList.add(new TaskTextureButton(0, guiLeft + 4, guiTop + 159, 71, 21, BUTTONS, 0, 42, ""));
-        buttonList.add(new GuiButton(2, guiLeft + 9, guiTop + 187, 61, 14, shortSchedule()));
-        buttonList.add(new GuiButton(3, guiLeft + 9, guiTop + 206, 20, 20, "H"));
-        buttonList.add(new GuiButton(4, guiLeft + 30, guiTop + 206, 20, 20, "P"));
+        buttonList.add(new ControlButton(2, guiLeft + 9, guiTop + 187, true));
+        buttonList.add(new ControlButton(3, guiLeft + 9, guiTop + 206, false));
+        buttonList.add(new ControlButton(4, guiLeft + 30, guiTop + 206, false));
         buttonList.add(new GuiButton(5, guiLeft + 51, guiTop + 206, 20, 20, "S"));
         GuiButton backpack = new GuiButton(7, guiLeft + 72, guiTop + 187, 12, 14, "B");
         backpack.enabled = hasSpecialBackpackScreen();
@@ -45,7 +45,7 @@ public final class GuiMaid extends AbstractGuiMaid {
         // previous broad >=100 check also swallowed profession rows 200-211
         // and their paging controls 220-222, so the task picker looked usable
         // but could never send MessageSetMaidTask.
-        if (button.id >= 100 && button.id <= 102) {
+        if (button.id >= 100 && button.id <= 103) {
             super.actionPerformed(button);
             return;
         }
@@ -87,8 +87,8 @@ public final class GuiMaid extends AbstractGuiMaid {
         for (Object value : buttonList) {
             GuiButton button = (GuiButton)value;
             if (button.id == 2) button.displayString = shortSchedule();
-            if (button.id == 3) button.displayString = (maid.isHomeMode() ? "\u00a7a" : "\u00a7c") + "H";
-            if (button.id == 4) button.displayString = (maid.isPickupEnabled() ? "\u00a7a" : "\u00a7c") + "P";
+
+
             if (button.id == 5) button.displayString = (maid.isSitting() ? "\u00a7a" : "\u00a7c") + "S";
             if (button.id == 7) button.enabled = hasSpecialBackpackScreen();
         }
@@ -102,6 +102,12 @@ public final class GuiMaid extends AbstractGuiMaid {
                     || mouseY < button.yPosition || mouseY >= button.yPosition + button.height) continue;
             String key = button.id == 3 ? "home" : button.id == 4 ? "pickup" : button.id == 5 ? "sitting" : button.id == 7 ? "backpack" : null;
             String text = key == null ? null : net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.control."+key);
+            if (button.id == 0) text = readableTask(maid.getTaskId());
+            if (button.id == 2) {
+                long time=(maid.worldObj.getWorldTime()%24000+24000)%24000;
+                text=net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.schedule."+maid.getSchedule().name().toLowerCase(java.util.Locale.ROOT))
+                    +String.format(java.util.Locale.ROOT,"  %02d:%02d",(time/1000+6)%24,(time%1000)*60/1000);
+            }
             if (button.id == 7 && !hasSpecialBackpackScreen()) text = net.minecraft.util.StatCollector.translateToLocal("gui.touhou_little_maid.control.backpack_open");
             if (button.id >= 200 && button.id < 212) {
                 List<IMaidTask> tasks = new ArrayList<IMaidTask>(TaskManager.getTasks().values());
@@ -134,6 +140,7 @@ public final class GuiMaid extends AbstractGuiMaid {
 
     @Override
     protected void drawPageForeground(int mouseX, int mouseY) {
+        drawTaskIcon(maid.getTaskId(),6,161);
         fontRendererObj.drawString(shortTaskId(maid.getTaskId()), 26, 165, 0x333333);
         if (taskListOpen) fontRendererObj.drawString((taskPage + 1) + "/" + ((TaskManager.getTasks().size() + 11) / 12), -48, 12, 0x333333);
     }
@@ -159,6 +166,7 @@ public final class GuiMaid extends AbstractGuiMaid {
         }
         buttonList.add(new TaskTextureButton(220, guiLeft - 89, guiTop + 9, 16, 13, TASK_PANEL, 110, 0, ""));
         buttonList.add(new TaskTextureButton(221, guiLeft - 72, guiTop + 9, 16, 13, TASK_PANEL, 93, 0, ""));
+        for(Object value:buttonList){GuiButton b=(GuiButton)value;if(b.id==220)b.enabled=taskPage>0;if(b.id==221)b.enabled=(taskPage+1)*12<tasks.size();}
         buttonList.add(new TaskTextureButton(222, guiLeft - 19, guiTop + 9, 13, 13, TASK_PANEL, 127, 0, ""));
     }
 
@@ -173,16 +181,46 @@ public final class GuiMaid extends AbstractGuiMaid {
 
     private void rebuildButtons() { buttonList.clear(); initGui(); }
 
+    @Override public void handleMouseInput() {
+        super.handleMouseInput();
+        int wheel=org.lwjgl.input.Mouse.getEventDWheel();
+        if(!taskListOpen||wheel==0)return;
+        int x=org.lwjgl.input.Mouse.getEventX()*width/mc.displayWidth-guiLeft;
+        int y=height-org.lwjgl.input.Mouse.getEventY()*height/mc.displayHeight-1-guiTop;
+        if(x < -89||x>=0||y<0||y>=256)return;
+        int next=Math.max(0,Math.min((TaskManager.getTasks().size()-1)/12,taskPage+(wheel<0?1:-1)));
+        if(next!=taskPage){taskPage=next;rebuildButtons();}
+    }
+
     private static String readableTask(String id) {
         int split = id.indexOf(':');
         String value = split < 0 ? id : id.substring(split + 1);
         String key = "task.touhou_little_maid." + value;
         String translated = net.minecraft.util.StatCollector.translateToLocal(key);
         if (!key.equals(translated)) value = translated;
-        return net.minecraft.client.Minecraft.getMinecraft().fontRenderer.trimStringToWidth(value, 73);
+        return value;
     }
 
-    private static final class TaskTextureButton extends GuiButton {
+    private final class ControlButton extends GuiButton {
+        private final boolean schedule;
+        ControlButton(int id,int x,int y,boolean schedule){super(id,x,y,schedule?61:20,schedule?13:20,"");this.schedule=schedule;}
+        @Override public void drawButton(net.minecraft.client.Minecraft minecraft,int mx,int my){
+            if(!visible)return;
+            boolean hover=mx>=xPosition&&mx<xPosition+width&&my>=yPosition&&my<yPosition+height;
+            minecraft.getTextureManager().bindTexture(BUTTONS);GL11.glColor4f(1,1,1,1);
+            if(schedule){int row="DAY".equals(maid.getSchedule().name())?0:"NIGHT".equals(maid.getSchedule().name())?1:2;drawTexturedModalRect(xPosition,yPosition,82,43+14*row,width,height);}
+            else {boolean active=id==3?maid.isHomeMode():maid.isPickupEnabled();drawTexturedModalRect(xPosition,yPosition,(id==3?0:42)+(active?21:0),hover?21:0,width,height);}
+        }
+    }
+    private void drawTaskIcon(String id,int x,int y){
+        net.minecraft.item.ItemStack stack=LegacyTaskIcons.get(id);if(stack==null)return;
+        GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
+        net.minecraft.client.renderer.RenderHelper.enableGUIStandardItemLighting();
+        itemRender.renderItemAndEffectIntoGUI(fontRendererObj,mc.getTextureManager(),stack,x,y);
+        GL11.glPopAttrib();
+    }
+
+    private final class TaskTextureButton extends GuiButton {
         private final net.minecraft.util.ResourceLocation texture;
         private final int u, v;
         TaskTextureButton(int id, int x, int y, int width, int height,
@@ -195,9 +233,15 @@ public final class GuiMaid extends AbstractGuiMaid {
                     && mouseX < xPosition + width && mouseY < yPosition + height;
             minecraft.getTextureManager().bindTexture(texture);
             GL11.glColor4f(1, 1, 1, 1);
-            drawTexturedModalRect(xPosition, yPosition, u, v + (hover && v == 28 ? 20 : 0), width, height);
-            if (!displayString.isEmpty()) drawCenteredString(minecraft.fontRenderer, displayString,
-                    xPosition + width / 2, yPosition + (height - 8) / 2, enabled ? 0x333333 : 0x777777);
+            drawTexturedModalRect(xPosition, yPosition, u, v + (hover && enabled ? (v == 28 ? 20 : v == 42 ? 22 : v == 0 ? 14 : 0) : 0), width, height);
+            if (!displayString.isEmpty()) {
+                if(id>=200&&id<212){
+                    List<IMaidTask> tasks=new ArrayList<IMaidTask>(TaskManager.getTasks().values());
+                    int index=taskPage*12+id-200;
+                    if(index<tasks.size())drawTaskIcon(tasks.get(index).getId(),xPosition+2,yPosition+2);
+                    minecraft.fontRenderer.drawString(minecraft.fontRenderer.trimStringToWidth(displayString,57),xPosition+23,yPosition+6,0x333333);
+                }else drawCenteredString(minecraft.fontRenderer,displayString,xPosition+width/2,yPosition+(height-8)/2,0x333333);
+            }
         }
     }
 }

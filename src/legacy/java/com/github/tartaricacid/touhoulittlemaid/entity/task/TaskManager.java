@@ -102,6 +102,7 @@ public final class TaskManager {
             return;
         }
         oldTask.onDeselected(maid);
+        maid.clearWorkPresentation();
         maid.setAttackTarget(null);
         maid.getNavigator().clearPathEntity();
         maid.setTaskIdInternal(newTask.getId());
@@ -110,7 +111,8 @@ public final class TaskManager {
 
     public static boolean isCombatTask(String id) {
         return ATTACK_ID.equals(id) || RANGED_ATTACK_ID.equals(id)
-                || DANMAKU_ATTACK_ID.equals(id);
+                || DANMAKU_ATTACK_ID.equals(id) || com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct.installed()
+                && (CROSSBOW_ATTACK_ID.equals(id)||TRIDENT_ATTACK_ID.equals(id));
     }
 
     public static double combatRange(String id) {

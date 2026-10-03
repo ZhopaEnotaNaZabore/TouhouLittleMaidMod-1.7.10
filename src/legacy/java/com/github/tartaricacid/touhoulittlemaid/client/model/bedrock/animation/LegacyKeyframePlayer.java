@@ -31,6 +31,8 @@ public final class LegacyKeyframePlayer {
         Map<String, double[]> out = new LinkedHashMap<String, double[]>();
         Map<String, double[]> rotationSum = new HashMap<String, double[]>();
         for (int i = 0; i < 8; i++) layer("pre" + i, "pre_parallel" + i, 0, 0, true, false, f, out, rotationSum);
+        boolean gun = !f.gunType.isEmpty() && library.contains("tac:hold:" + f.gunType)
+                && !f.sleeping && !f.dead && !f.actionsDisabled && !f.seated() && !f.carried;
         String state = mainState(f);
         layer("main", state, 2, 0, !"death".equals(state) && !"attacked".equals(state), false, f, out, rotationSum);
         boolean rightBusy = (f.swing > 0 && !f.swingLeft) || (f.using() && !f.useLeft);
@@ -39,7 +41,7 @@ public final class LegacyKeyframePlayer {
                 0, 0, true, false, f, out, rotationSum);
         String hold = conditional("hold_mainhand", f.mainId, f.mainCategory, "");
         if (f.fishing && !rightBusy && !f.using() && library.contains("hold_mainhand:fishing")) hold = "hold_mainhand:fishing";
-        layer("hand", f.sleeping || rightBusy ? null : hold, 0, 0, true, false, f, out, rotationSum);
+        layer("hand", f.sleeping || rightBusy || gun ? null : hold, 0, 0, true, false, f, out, rotationSum);
         Layer swingLayer = layers.get("swing");
         String swing = f.swingLeft ? "swing_offhand" : "swing_hand";
         boolean unseenEvent = f.swingSequence != 0 && !f.cancelSwing
@@ -51,10 +53,17 @@ public final class LegacyKeyframePlayer {
         if (unseenEvent && f.swing <= 0 && (pendingSwing == null || f.swingTicks > pendingSwing.length * 20)) swing = null;
         if (f.sleeping || f.dead || f.actionsDisabled || f.cancelSwing
                 || (!unseenEvent && swingLayer != null && f.swing <= 0 && !swingLayer.alive(f.age, library))) swing = null;
-        layer("swing", swing, 2, f.swingSequence, false, false, f, out, rotationSum);
+        layer("swing", gun ? null : swing, 2, f.swingSequence, false, false, f, out, rotationSum);
         String usePrefix = f.useLeft ? "use_offhand" : "use_mainhand";
-        layer("use", !f.using() || f.sleeping || f.dead || f.actionsDisabled ? null : conditional(usePrefix,
+        layer("use", gun || !f.using() || f.sleeping || f.dead || f.actionsDisabled ? null : conditional(usePrefix,
                 f.useLeft ? f.offId : f.mainId, f.use, usePrefix), 2, f.useSequence, true, false, f, out, rotationSum);
+        String gunClip = null;
+        if (gun) {
+            String prefix = f.swing > 0 ? "tac:aim:fire:" : f.ranged ? "tac:aim:" : f.sprinting ? "tac:run:" : "tac:hold:";
+            gunClip = prefix + f.gunType;
+            if (!library.contains(gunClip)) gunClip = "tac:hold:" + f.gunType;
+        }
+        layer("gun", gunClip, 0, f.swing > 0 ? f.swingSequence : 0, f.swing <= 0, false, f, out, rotationSum);
         layer("misc", f.begging ? "beg" : null, 2, 0, true, false, f, out, rotationSum);
         for (int i = 0; i < 8; i++) layer("parallel" + i, "parallel" + i, 0, 0, true, true, f, out, rotationSum);
         // SRC resets unanimated tracks in one tick. Snapshot once, not every render frame.
@@ -94,7 +103,7 @@ public final class LegacyKeyframePlayer {
     private String conditional(String prefix, String id, String category, String fallback) {
         if (id.isEmpty() && prefix.startsWith("hold_")) return library.contains(prefix + ":empty") ? prefix + ":empty" : null;
         if (!id.isEmpty() && library.contains(prefix + "$" + id)) return prefix + "$" + id;
-        if (!category.isEmpty() && !"crossbow".equals(category) && !"spear".equals(category)
+        if (!category.isEmpty()
                 && library.contains(prefix + ":" + category)) return prefix + ":" + category;
         return fallback.isEmpty() ? (library.contains(prefix) ? prefix : null) : fallback;
     }
@@ -109,7 +118,7 @@ public final class LegacyKeyframePlayer {
             layer.name = name; layer.sequence = sequence;
             LegacyKeyframeClip next = library.get(name);
             layer.playback = next == null ? null : next.timeline.playback(f.uuidSeed ^ ((long) sequence << 32) ^ name.hashCode());
-            float elapsed = "swing".equals(key) ? f.swingTicks : "use".equals(key) ? f.useTicks : 0;
+            float elapsed = ("swing".equals(key) || ("gun".equals(key) && f.swing > 0)) ? f.swingTicks : "use".equals(key) ? f.useTicks : 0;
             layer.started = f.age - Math.max(0, elapsed);
         }
         layer.output.clear();

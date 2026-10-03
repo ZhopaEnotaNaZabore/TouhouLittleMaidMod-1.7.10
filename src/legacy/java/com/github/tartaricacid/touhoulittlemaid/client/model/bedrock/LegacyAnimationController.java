@@ -1,5 +1,6 @@
 package com.github.tartaricacid.touhoulittlemaid.client.model.bedrock;
 
+import com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct;
 import com.github.tartaricacid.touhoulittlemaid.client.model.bedrock.animation.LegacyAnimationFrame;
 import com.github.tartaricacid.touhoulittlemaid.entity.animation.MaidActionState;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -9,6 +10,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityBoat;
 import net.minecraft.item.*;
 import net.minecraft.init.Items;
+import com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun;
 
 /** Converts synchronized entity state to frame inputs; the model owns its effective animation profile. */
 public final class LegacyAnimationController {
@@ -56,12 +58,15 @@ public final class LegacyAnimationController {
         if (action.swingSequence() == 0) { f.swing = vanillaSwing; f.swingLeft = false; }
         f.swingSequence = action.swingSequence(); f.swingTicks = action.swingSequence() == 0 ? f.swing * 6 : action.swingElapsed(time);
         f.cancelSwing = !action.hasSwingEvent() && f.swing <= 0;
-        if (f.sleeping || f.dead || "honey".equals(f.task) || "crossbow_attack".equals(f.task) || "trident_attack".equals(f.task)) {
+        if (f.sleeping || f.dead || "honey".equals(f.task) || (("crossbow_attack".equals(f.task) || "trident_attack".equals(f.task)) && LegacyTConstruct.animation(maid.getHeldItem()).isEmpty())) {
             f.actionsDisabled = true; f.use = ""; f.swing = 0; f.ranged = false;
         }
         ItemStack main = maid.getHeldItem(), off = maid.getOffhandItem(), shown = action.displayItem(time);
         if (f.using() && shown != null) { if (f.useLeft) off = shown; else main = shown; }
+        if (main != null && main.getItem() instanceof ItemAnimationGun) f.gunType = ((ItemAnimationGun) main.getItem()).getAnimationType();
+        if ("work".equals(f.use)) f.use=""; // Display the work item without triggering eating/drinking clips.
         f.mainId = id(main); f.offId = id(off); f.mainCategory = category(main); f.offCategory = category(off);
+        if("charged_crossbow".equals(f.mainCategory) && "crossbow".equals(f.use))f.use="";
         f.backpack = !"empty".equals(maid.getBackpackType());
         f.helmet = maid.getEquipmentInSlot(4) != null; f.chest = maid.getEquipmentInSlot(3) != null;
         f.leggings = maid.getEquipmentInSlot(2) != null; f.boots = maid.getEquipmentInSlot(1) != null;
@@ -71,8 +76,9 @@ public final class LegacyAnimationController {
     private static String id(ItemStack stack) { return stack == null ? "" : String.valueOf(Item.itemRegistry.getNameForObject(stack.getItem())); }
     private static String category(ItemStack stack) {
         if (stack == null) return "";
+        String compat=LegacyTConstruct.category(stack);if(!compat.isEmpty())return compat;
         Item item = stack.getItem();
-        if (item == Items.bow) return "bow";
+        if (ItemAnimationGun.isBowWeapon(item)) return "bow";
         if (item == ModItems.HAKUREI_GOHEI || item == ModItems.SANAE_GOHEI) return "gohei";
         if (item instanceof ItemSword) return "sword";
         if (item instanceof ItemAxe) return "axe";

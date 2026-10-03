@@ -32,7 +32,7 @@ public final class CommandTlmMaid extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/tlmmaid <spawn|fairy|power|beaconverify|ownerverify|backup|profile|verify|uiverify|status|task|schedule|home> [value]";
+        return "/tlmmaid <spawn|fairy|power|beaconverify|ownerverify|backup|profile|verify|uiverify|status|invulnerable|task|schedule|home> [value]";
     }
 
     @Override
@@ -178,9 +178,20 @@ public final class CommandTlmMaid extends CommandBase {
             return;
         }
 
+        if ("invulnerable".equalsIgnoreCase(args[0])) {
+            if (args.length != 2 || !("on".equalsIgnoreCase(args[1]) || "off".equalsIgnoreCase(args[1]))) {
+                sender.addChatMessage(new ChatComponentText("/tlmmaid invulnerable <on|off>"));
+                return;
+            }
+            maid.setMaidInvulnerable("on".equalsIgnoreCase(args[1]));
+            sender.addChatMessage(new ChatComponentText("Maid Jizo protection: " + maid.isMaidInvulnerable()));
+            return;
+        }
+
         if ("status".equalsIgnoreCase(args[0])) {
             sender.addChatMessage(new ChatComponentText(
                     "task=" + maid.getTaskId() + ", hunger=" + maid.getHunger()
+                            + ", invulnerable=" + maid.isMaidInvulnerable()
                             + ", favorability=" + maid.getFavorability()
                             + ", xp=" + maid.getMaidExperience() + ", sitting=" + maid.isSitting()
                             + ", schedule=" + maid.getSchedule() + ", activity=" + maid.getCurrentActivity()
@@ -236,8 +247,10 @@ public final class CommandTlmMaid extends CommandBase {
     @Override
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
         if (args.length == 1) {
-            return getListOfStringsMatchingLastWord(args, "spawn", "fairy", "power", "beaconverify", "ownerverify", "backup", "profile", "verify", "uiverify", "status", "task", "schedule", "home");
+            return getListOfStringsMatchingLastWord(args, "spawn", "fairy", "power", "beaconverify", "ownerverify", "backup", "profile", "verify", "uiverify", "status", "invulnerable", "task", "schedule", "home");
         }
+        if (args.length == 2 && "invulnerable".equalsIgnoreCase(args[0]))
+            return getListOfStringsMatchingLastWord(args, "on", "off");
         if (args.length == 2 && "task".equalsIgnoreCase(args[0])) {
             List<String> ids = new ArrayList<String>();
             for (String id : TaskManager.getTasks().keySet()) {

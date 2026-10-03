@@ -34,6 +34,8 @@ public final class LegacyAnimationProfile {
                 } else result.add(id);
             }
         }
+        if (gecko && result.contains("geckolib:animation/sta.condition.animation.json"))
+            result.add("touhou_little_maid:animation/sta_legacy.animation.json");
         animations = Collections.unmodifiableList(result);
     }
 }

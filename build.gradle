@@ -23,6 +23,13 @@ buildscript {
 apply plugin: 'forge'
 apply plugin: 'idea'
 
+task tileEntityRegression(type: JavaExec, dependsOn: testClasses) {
+    main = 'com.github.tartaricacid.touhoulittlemaid.test.TileTestLauncher'
+    classpath = sourceSets.test.runtimeClasspath
+    workingDir = file("$buildDir/tileentity-test-runtime")
+    doFirst { workingDir.mkdirs() }
+}
+
 targetCompatibility = sourceCompatibility = JavaVersion.VERSION_1_8
 
 archivesBaseName = "TouhouLittleMaidMod-1.7.10"
@@ -59,6 +66,7 @@ sourceSets {
 sourceSets.main.compileClasspath += sourceSets.engine.output
 sourceSets.main.runtimeClasspath += sourceSets.engine.output
 compileJava.dependsOn engineClasses
+tileEntityRegression.classpath += sourceSets.engine.output
 jar.from sourceSets.engine.output
 
 /* Вспомогательные конфиги для IDEA */
@@ -76,6 +84,12 @@ minecraft {
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
+}
+
+task allMaidModelAudit(type: JavaExec, dependsOn: testClasses) {
+    main = 'AllMaidModelAudit'
+    classpath = sourceSets.test.runtimeClasspath
+    args projectDir.absolutePath
 }
 
 processResources {
@@ -176,4 +190,40 @@ dependencies {
 dependencies {
     compile 'org.ow2.asm:asm-debug-all:5.0.3'
 
+}
+
+// Optional API probe. Supply separately remapped MCP jars; never ship TC/Mantle in this mod.
+task tconstructProbe(type: JavaExec, dependsOn: testClasses) {
+    main = 'TConstructTestLauncher'
+    workingDir = file("$buildDir/tileentity-test-runtime")
+    doFirst {
+        if (!project.hasProperty('tconstructTestJar') || !project.hasProperty('mantleTestJar'))
+            throw new GradleException('Set -PtconstructTestJar=<MCP TC jar> -PmantleTestJar=<MCP Mantle jar>')
+        def runtime = sourceSets.test.runtimeClasspath + files(project.property('tconstructTestJar'), project.property('mantleTestJar'))
+        workingDir.mkdirs()
+        def mf = new java.util.jar.Manifest()
+        mf.mainAttributes.putValue('Manifest-Version', '1.0')
+        mf.mainAttributes.putValue('Class-Path', runtime.files.collect { it.toURI().toASCIIString() }.join(' '))
+        def pathJar = file("$buildDir/tconstruct-probe-classpath.jar")
+        new java.util.jar.JarOutputStream(new FileOutputStream(pathJar), mf).close()
+        classpath = files(pathJar)
+    }
+}
+
+// Optional real Avaritia 1.13 API probe; dependency remains outside the published mod.
+task avaritiaProbe(type: JavaExec, dependsOn: testClasses) {
+    main = 'AvaritiaTestLauncher'
+    workingDir = file("$buildDir/tileentity-test-runtime")
+    doFirst {
+        if (!project.hasProperty('avaritiaTestJar'))
+            throw new GradleException('Set -PavaritiaTestJar=<MCP Avaritia jar>')
+        def runtime = sourceSets.test.runtimeClasspath + files(project.property('avaritiaTestJar'))
+        workingDir.mkdirs()
+        def mf = new java.util.jar.Manifest()
+        mf.mainAttributes.putValue('Manifest-Version', '1.0')
+        mf.mainAttributes.putValue('Class-Path', runtime.files.collect { it.toURI().toASCIIString() }.join(' '))
+        def pathJar = file("$buildDir/avaritia-probe-classpath.jar")
+        new java.util.jar.JarOutputStream(new FileOutputStream(pathJar), mf).close()
+        classpath = files(pathJar)
+    }
 }

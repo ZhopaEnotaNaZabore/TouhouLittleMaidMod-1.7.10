@@ -29,9 +29,10 @@ public final class TaskGrass extends AbstractHarvestTask {
         }
         ArrayList<ItemStack> drops = target.block.getDrops(
                 maid.worldObj, target.x, target.y, target.z, target.metadata, 0);
+        // Remove the lower half first: removing the top notifies and drops the lower half.
+        if (!maid.worldObj.setBlockToAir(target.x, target.y, target.z)) return;
         if (maid.worldObj.getBlock(target.x, target.y + 1, target.z) == target.block)
             maid.worldObj.setBlockToAir(target.x, target.y + 1, target.z);
-        maid.worldObj.setBlockToAir(target.x, target.y, target.z);
         playHarvestEffect(maid, target);
         insertDrops(maid, drops);
     }

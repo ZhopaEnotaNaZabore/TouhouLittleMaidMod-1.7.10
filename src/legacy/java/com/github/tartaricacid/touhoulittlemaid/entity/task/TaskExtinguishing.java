@@ -20,14 +20,14 @@ public final class TaskExtinguishing implements IMaidTask {
     @Override
     @SuppressWarnings("unchecked")
     public void tick(EntityMaid maid) {
-        if (maid.isSitting() || !ensureMainhandExtinguisher(maid) || maid.ticksExisted % 12 != 0) return;
+        if (maid.worldObj.isRemote || maid.isMaidSleeping() || !maid.isWorkingNow() || maid.isSitting() || !ensureMainhandExtinguisher(maid) || maid.ticksExisted % 12 != 0) return;
 
         if (maid.isBurning()) {
             extinguish(maid, maid);
             return;
         }
         EntityLivingBase owner = maid.getOwner();
-        if (owner != null && owner.isBurning()
+        if (owner != null && owner.isEntityAlive() && maid.canEntityBeSeen(owner) && owner.isBurning()
                 && maid.isPositionWithinRestriction(owner.posX, owner.posY, owner.posZ)) {
             if (maid.getDistanceSqToEntity(owner) > 4.0D) {
                 maid.getNavigator().tryMoveToEntityLiving(owner, 0.65D);
@@ -40,7 +40,7 @@ public final class TaskExtinguishing implements IMaidTask {
         List<EntityTameable> pets = maid.worldObj.getEntitiesWithinAABB(
                 EntityTameable.class, maid.boundingBox.expand(2.0D, 1.0D, 2.0D));
         for (EntityTameable pet : pets) {
-            if (pet.isBurning() && pet.getOwner() == owner
+            if (owner != null && pet.isEntityAlive() && maid.canEntityBeSeen(pet) && pet.isBurning() && pet.getOwner() == owner
                     && maid.isPositionWithinRestriction(pet.posX, pet.posY, pet.posZ)) {
                 extinguish(maid, pet);
                 return;
@@ -52,9 +52,9 @@ public final class TaskExtinguishing implements IMaidTask {
         if (maid.getDistanceSq(fire.x + 0.5D, fire.y, fire.z + 0.5D) > 6.25D) {
             maid.getNavigator().tryMoveToXYZ(fire.x + 0.5D, fire.y, fire.z + 0.5D, 0.65D);
         } else {
-            maid.worldObj.spawnEntityInWorld(new EntityExtinguishingAgent(
-                    maid.worldObj, fire.x + 0.5D, fire.y + 0.5D, fire.z + 0.5D));
-            damageExtinguisher(maid);
+            maid.getLookHelper().setLookPosition(fire.x+.5D,fire.y+.5D,fire.z+.5D,30,30);
+            if (maid.worldObj.spawnEntityInWorld(new EntityExtinguishingAgent(
+                    maid.worldObj, fire.x + 0.5D, fire.y + 0.5D, fire.z + 0.5D))) damageExtinguisher(maid);
         }
     }
 
@@ -80,9 +80,9 @@ public final class TaskExtinguishing implements IMaidTask {
     }
 
     private void extinguish(EntityMaid maid, EntityLivingBase target) {
-        maid.worldObj.spawnEntityInWorld(new EntityExtinguishingAgent(
-                maid.worldObj, target.posX, target.posY + 0.5D, target.posZ));
-        damageExtinguisher(maid);
+        if (target != maid) maid.getLookHelper().setLookPositionWithEntity(target,30,30);
+        if (maid.worldObj.spawnEntityInWorld(new EntityExtinguishingAgent(
+                maid.worldObj, target.posX, target.posY + 0.5D, target.posZ))) damageExtinguisher(maid);
     }
 
     private void damageExtinguisher(EntityMaid maid) {

@@ -1,5 +1,7 @@
 package com.github.tartaricacid.touhoulittlemaid.entity.passive;
 
+import com.github.tartaricacid.touhoulittlemaid.compat.LegacyTConstruct;
+import com.github.tartaricacid.touhoulittlemaid.compat.LegacyAvaritia;
 import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
 import com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid;
 import com.github.tartaricacid.touhoulittlemaid.proxy.CommonProxy;
@@ -54,6 +56,7 @@ import net.minecraft.inventory.InventoryBasic;
 import net.minecraft.item.ItemFood;
 import net.minecraft.item.ItemStack;
 import net.minecraft.init.Items;
+import com.github.tartaricacid.touhoulittlemaid.item.ItemAnimationGun;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.projectile.EntityArrow;
@@ -158,6 +161,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         tasks.addTask(3, new EntityAIMaidFollowOwner(this, 1.0D, 4.0F, 2.0F));
         tasks.addTask(4, new EntityAIMaidMeleeAttack(this));
         tasks.addTask(4, new EntityAIMaidRangedAttack(this));
+        tasks.addTask(4, new EntityAIMaidRangedAttack(this, TaskManager.CROSSBOW_ATTACK_ID));
+        tasks.addTask(4, new EntityAIMaidRangedAttack(this, TaskManager.TRIDENT_ATTACK_ID));
         tasks.addTask(4, new EntityAIMaidRangedAttack(this, TaskManager.DANMAKU_ATTACK_ID));
         tasks.addTask(8, new EntityAIWander(this, 0.6D) {
             @Override public boolean shouldExecute(){return canRunIdleMovement()&&super.shouldExecute();}
@@ -225,6 +230,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         long profileStarted = System.nanoTime();
 
         syncEquipmentSlots();
+        LegacyAvaritia.tickArmor(this);
         favorabilityManager.tick();
         tickSpecialBackpack();
         if(isPeriodicTick(20))tickWirelessIO();
@@ -240,7 +246,8 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         tickActionPresentation();
         tickFenceGate();
         if (isCollidedHorizontally && !onGround && !isSitting() && getNavigator().getPath() != null) motionY = Math.max(motionY, 0.2D);
-        if (isTamed() && isPickupEnabled() && !isSitting() && ticksExisted % 5 == 0) {
+        if (isTamed() && isPickupEnabled() && ticksExisted % 5 == 0
+                && (!isSitting() || (ticksExisted % 60 == 0 && findBauble(ItemMaidBauble.Type.MAGNET) >= 0))) {
             pickupNearbyItems();
         }
         if (isTamed() && isPeriodicTick(LegacyConfig.backupIntervalTicks)) MaidBackupsManager.save(this);
@@ -276,7 +283,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
     @Override
     @cpw.mods.fml.relauncher.SideOnly(cpw.mods.fml.relauncher.Side.CLIENT)
     public net.minecraft.util.IIcon getItemIcon(ItemStack stack, int pass) {
-        if (stack.getItem() == Items.bow) {
+        if (ItemAnimationGun.isBowWeapon(stack.getItem())) {
             int stage=actionState.bowPullStage(ticksExisted,
                     com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyMaidItemContext.isLeft());
             if(stage>=0)return Items.bow.getItemIconForUseDuration(stage);
@@ -307,10 +314,19 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         actionState.beginUse(item, left, kind, duration, false, ticksExisted);
         syncActionPresentation();
     }
+    public void workSwing(ItemStack item) {
+        beginUsePresentation(item,false,"work",10);
+        swingItem();
+    }
+    public void clearWorkPresentation() {
+        if(worldObj.isRemote)return;
+        actionState.clear();syncActionPresentation();
+    }
     public void updateRangedPresentation(boolean aiming) {
         if (worldObj.isRemote) return;
         ItemStack item = getHeldItem();
-        String kind = item != null && item.getItem() == Items.bow ? "bow" : "gohei";
+        String kind = LegacyTConstruct.animation(item);
+        if(kind.isEmpty())kind=item != null && ItemAnimationGun.isBowWeapon(item.getItem()) ? "bow" : "gohei";
         boolean valid = aiming && canEngageCombat() && hasRangedWeaponForCurrentTask() && !isMaidSleeping() && !isSitting();
         if (valid && (!actionState.using(ticksExisted) || actionState.isRanged())) {
             ItemStack shown = actionState.displayItem(ticksExisted);
@@ -442,33 +458,30 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
 
     @Override
     public boolean attackEntityFrom(net.minecraft.util.DamageSource source, float amount) {
-        if (isMaidInvulnerable()) return false;
+        if (worldObj.isRemote || isMaidInvulnerable() || !isEntityAlive() || amount <= 0 || Float.isNaN(amount)) return false;
+        if (LegacyAvaritia.protects(this, source)) return false;
+        if (source.isFireDamage() && isPotionActive(Potion.fireResistance)) return false;
+        if (source.isProjectile()) {
+            int nimble = findBauble(ItemMaidBauble.Type.NIMBLE);
+            if (nimble >= 0) { damageBauble(nimble); teleportAway(); return false; }
+        }
         ItemMaidBauble.Type protection = null;
         if (source == net.minecraft.util.DamageSource.drown) protection = ItemMaidBauble.Type.DROWN;
         else if (source == net.minecraft.util.DamageSource.fall) protection = ItemMaidBauble.Type.FALL;
         else if (source.isFireDamage()) protection = ItemMaidBauble.Type.FIRE;
         else if (source.isExplosion()) protection = ItemMaidBauble.Type.EXPLOSION;
-        else if (source.isProjectile()) {
-            int nimble = findBauble(ItemMaidBauble.Type.NIMBLE);
-            if (nimble >= 0 && teleportAway()) { damageBauble(nimble); return false; }
-            protection = ItemMaidBauble.Type.PROJECTILE;
-        } else if (source.isMagicDamage()) protection = ItemMaidBauble.Type.MAGIC;
+        else if (source.isProjectile()) protection = ItemMaidBauble.Type.PROJECTILE;
+        else if (source.isMagicDamage()) protection = ItemMaidBauble.Type.MAGIC;
         int slot = protection == null ? -1 : findBauble(protection);
         if (slot >= 0) {
             damageBauble(slot);
             if (protection == ItemMaidBauble.Type.DROWN) setAir(300);
-            if (protection == ItemMaidBauble.Type.FIRE) addPotionEffect(new PotionEffect(Potion.fireResistance.id, 300));
+            if (protection == ItemMaidBauble.Type.FIRE) {
+                addPotionEffect(new PotionEffect(Potion.fireResistance.id, 300));
+                worldObj.spawnEntityInWorld(new EntityExtinguishingAgent(worldObj, posX, posY, posZ));
+            }
             worldObj.playSoundAtEntity(this, "random.glass", 0.7F, 1.4F);
             return false;
-        }
-        if (amount >= getHealth()) {
-            int life = findBauble(ItemMaidBauble.Type.EXTRA_LIFE);
-            if (life >= 0 && !source.canHarmInCreative()) {
-                damageBauble(life); setHealth(getMaxHealth()); clearActivePotions();
-                addPotionEffect(new PotionEffect(Potion.regeneration.id, 900, 1));
-                addPotionEffect(new PotionEffect(Potion.fireResistance.id, 800));
-                worldObj.setEntityState(this, (byte) 35); return false;
-            }
         }
         boolean result = super.attackEntityFrom(source, amount);
         if (result && !worldObj.isRemote && isEntityAlive()) playMaidVoice(source.isFireDamage() ? "maid.ai.hurt_fire" : "maid.ai.hurt");
@@ -482,6 +495,19 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
                 || TaskManager.FEED_ANIMAL_ID.equals(getTaskId())) || !(target instanceof EntityLivingBase)
                 || !com.github.tartaricacid.touhoulittlemaid.entity.task.CombatTargeting.isValidTarget(this,
                 (EntityLivingBase) target, TaskManager.combatRange(getTaskId()))) return false;
+        if (LegacyAvaritia.isSword(getHeldItem())) {
+            float before = ((EntityLivingBase) target).getHealth();
+            boolean hit = LegacyAvaritia.attack(this, (EntityLivingBase) target);
+            if (hit) { successfulMeleeHits++; lastMeleeHitTick = ticksExisted;
+                lastMeleeDamage = Math.max(0, before - ((EntityLivingBase) target).getHealth()); }
+            return hit;
+        }
+        if(LegacyTConstruct.tool(getHeldItem())) {
+            float before=((EntityLivingBase)target).getHealth();
+            boolean hit=LegacyTConstruct.attack(this,(EntityLivingBase)target);
+            if(hit){successfulMeleeHits++;lastMeleeHitTick=ticksExisted;lastMeleeDamage=Math.max(0,before-((EntityLivingBase)target).getHealth());}
+            return hit;
+        }
         // EntityMaid descends from EntityTameable. In 1.7.10 that inheritance
         // reaches EntityLivingBase.attackEntityAsMob(), whose implementation
         // only records the attacker and always returns false. Use the vanilla
@@ -508,6 +534,12 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
             if (target instanceof EntityLivingBase)
                 EnchantmentHelper.func_151384_a((EntityLivingBase) target, this);
             EnchantmentHelper.func_151385_b(this, target);
+            ItemStack weapon = getHeldItem();
+            if (weapon != null && target instanceof EntityLivingBase) {
+                weapon.getItem().hitEntity(weapon, (EntityLivingBase) target, this);
+                if (weapon.stackSize <= 0) setCurrentItemOrArmor(0, null);
+                maidEquipmentInventory.markDirty();
+            }
             if (!worldObj.isRemote) {
                 successfulMeleeHits++;
                 lastMeleeHitTick = ticksExisted;
@@ -543,6 +575,25 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
 
     @Override
     public void onDeath(net.minecraft.util.DamageSource source) {
+        if (dead || isDead) return;
+        if (!worldObj.isRemote && LegacyAvaritia.protects(this, source)) {
+            setHealth(getMaxHealth());
+            return;
+        }
+        // Death is evaluated after armor, resistance and absorption, as in SRC.
+        if (!worldObj.isRemote && !source.canHarmInCreative()) {
+            int life = findBauble(ItemMaidBauble.Type.EXTRA_LIFE);
+            if (life >= 0) {
+                damageBauble(life);
+                setHealth(getMaxHealth());
+                worldObj.playSoundAtEntity(this, "random.glass", 1.0F, 1.0F);
+                worldObj.setEntityState(this, (byte) 7);
+                return;
+            }
+        }
+        // Let Forge death cancellation run before moving any inventory.
+        super.onDeath(source);
+        if (!dead) return;
         if (!worldObj.isRemote && isTamed()) {
             playMaidVoice("maid.ai.death");
             favorabilityManager.apply("Death", -2, 12000);
@@ -576,7 +627,12 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
             for (int equipment = 0; equipment < 5; equipment++) setCurrentItemOrArmor(equipment, null);
             worldObj.spawnEntityInWorld(tombstone);
         }
-        super.onDeath(source);
+    }
+
+    // Tamed equipment belongs to the tombstone; vanilla must not drop it a second time.
+    @Override
+    protected void dropEquipment(boolean recentlyHit, int looting) {
+        if (!isTamed()) super.dropEquipment(recentlyHit, looting);
     }
 
     @Override
@@ -584,6 +640,10 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         if (!canRunCombatAI() || !hasRangedWeaponForCurrentTask()
                 || !com.github.tartaricacid.touhoulittlemaid.entity.task.CombatTargeting.isValidTarget(this,
                 target, TaskManager.combatRange(getTaskId()))) return;
+        if(LegacyTConstruct.kind(getHeldItem())!=LegacyTConstruct.Kind.NONE) {
+            if(LegacyTConstruct.fire(this,target)){rangedPresentationReleased();swingItem();playMaidVoice("maid.mode.range_attack");}
+            return;
+        }
         // Unsupported vanilla 1.7.10 professions must never fire surrogate arrows.
         if (TaskManager.CROSSBOW_ATTACK_ID.equals(getTaskId()) || TaskManager.TRIDENT_ATTACK_ID.equals(getTaskId())) return;
         if (TaskManager.DANMAKU_ATTACK_ID.equals(getTaskId())) {
@@ -626,9 +686,13 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
             playMaidVoice("maid.mode.range_attack");
             return;
         }
+        if (LegacyAvaritia.isBow(getHeldItem())) {
+            if (LegacyAvaritia.fire(this, target)) { rangedPresentationReleased(); swingItem(); }
+            return;
+        }
         int arrowSlot = findInventorySlot(Items.arrow);
         ItemStack bow = maidEquipmentInventory.getStackInSlot(0);
-        if (bow == null || bow.getItem() != Items.bow || arrowSlot < 0 || target == null) return;
+        if (bow == null || !ItemAnimationGun.isBowWeapon(bow.getItem()) || arrowSlot < 0 || target == null) return;
 
         EntityArrow arrow = new EntityArrow(worldObj, this, target, 1.6F, 4.0F);
         double baseAttack = getEntityAttribute(SharedMonsterAttributes.attackDamage).getBaseValue();
@@ -645,7 +709,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         if (punch > 0) arrow.setKnockbackStrength(punch);
         if (EnchantmentHelper.getEnchantmentLevel(Enchantment.flame.effectId, bow) > 0) arrow.setFire(100);
 
-        boolean infinite = EnchantmentHelper.getEnchantmentLevel(Enchantment.infinity.effectId, bow) > 0;
+        boolean infinite = !(bow.getItem() instanceof ItemAnimationGun) && EnchantmentHelper.getEnchantmentLevel(Enchantment.infinity.effectId, bow) > 0;
         if (!infinite) consumeInventoryItem(arrowSlot);
         arrow.canBePickedUp = infinite ? 0 : 1;
         bow.damageItem(1, this);
@@ -837,6 +901,25 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         return super.getHeldItem();
     }
 
+    @Override
+    public ItemStack getEquipmentInSlot(int slot) {
+        if (maidEquipmentInventory != null && worldObj != null && !worldObj.isRemote
+                && slot >= 0 && slot <= 4)
+            return maidEquipmentInventory.getStackInSlot(slot == 0 ? 0 : slot + 1);
+        return super.getEquipmentInSlot(slot);
+    }
+
+    @Override
+    protected float applyArmorCalculations(net.minecraft.util.DamageSource source, float amount) {
+        // Forge's player armor pipeline also accepts EntityLivingBase. It preserves
+        // ISpecialArmor priorities, energy costs and each item's bypass policy.
+        ItemStack[] armor = new ItemStack[4];
+        for (int i = 0; i < 4; i++) armor[i] = getEquipmentInSlot(i + 1);
+        float remaining = net.minecraftforge.common.ISpecialArmor.ArmorProperties.ApplyArmor(this, armor, source, amount);
+        for (int i = 0; i < 4; i++) setCurrentItemOrArmor(i + 1, armor[i]);
+        return Math.max(0, remaining);
+    }
+
     /** Mirrors external equipment mutations back into MaidEquipmentInventory. */
     @Override
     public void setCurrentItemOrArmor(int vanillaSlot, ItemStack stack) {
@@ -947,7 +1030,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
 
     public boolean hasBowAndArrow() {
         ItemStack held = maidEquipmentInventory.getStackInSlot(0);
-        return held != null && held.getItem() == Items.bow && findInventorySlot(Items.arrow) >= 0;
+        return LegacyAvaritia.isBow(held) || held != null && ItemAnimationGun.isBowWeapon(held.getItem()) && findInventorySlot(Items.arrow) >= 0;
     }
 
     public boolean hasGohei() {
@@ -957,7 +1040,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
     }
 
     public boolean hasRangedWeaponForCurrentTask() {
-        return (TaskManager.RANGED_ATTACK_ID.equals(getTaskId()) && hasBowAndArrow())
+        return LegacyTConstruct.ready(this) || (TaskManager.RANGED_ATTACK_ID.equals(getTaskId()) && hasBowAndArrow())
                 || (TaskManager.DANMAKU_ATTACK_ID.equals(getTaskId()) && hasGohei())
                 ;
     }
@@ -1043,6 +1126,10 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
         // home point (often the place where a Shrine Lamp used to stand).
         if (changed) getNavigator().clearPathEntity();
     }
+    // Use the synced state as the single authority, including after NBT reload.
+    @Override
+    public boolean isEntityInvulnerable() { return isMaidInvulnerable(); }
+
     public boolean isMaidInvulnerable() { return hasFlag(FLAG_INVULNERABLE); }
     public boolean isBegging() { return hasFlag(FLAG_BEGGING); }
     public boolean isMaidSleeping() { return hasFlag(FLAG_SLEEPING); }
@@ -1131,7 +1218,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
                 && TaskManager.FISHING_ID.equals(getTaskId())
                 && getSchedule().getActivity(worldObj.getWorldTime()) == MaidActivity.WORK
                 && ridingEntity instanceof EntitySit && "fishing".equals(((EntitySit)ridingEntity).getJoyType())
-                && rod != null && rod.getItem() == Items.fishing_rod;
+                && rod != null && rod.getItem() instanceof net.minecraft.item.ItemFishingRod;
     }
     public boolean isWorkingNow() { return getCurrentActivity() == MaidActivity.WORK; }
     public SchedulePos getSchedulePos() { return schedulePos; }
@@ -1294,7 +1381,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
 
     @SuppressWarnings("unchecked")
     private void pickupNearbyItems() {
-        double range = findBauble(ItemMaidBauble.Type.MAGNET) >= 0 ? 6.0D : 0.75D;
+        double range = ticksExisted % 60 == 0 && findBauble(ItemMaidBauble.Type.MAGNET) >= 0 ? 6.0D : 0.75D;
         List<EntityItem> items = worldObj.getEntitiesWithinAABB(EntityItem.class, boundingBox.expand(range, range, range));
         for (EntityItem item : items) {
             if (!item.isDead && item.delayBeforeCanPickup <= 0) {
@@ -1305,6 +1392,18 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
                     item.setEntityItemStack(remaining);
                 }
             }
+        }
+        List<com.github.tartaricacid.touhoulittlemaid.entity.item.EntityPowerPoint> points = worldObj.getEntitiesWithinAABB(
+                com.github.tartaricacid.touhoulittlemaid.entity.item.EntityPowerPoint.class, boundingBox.expand(range, range, range));
+        for (com.github.tartaricacid.touhoulittlemaid.entity.item.EntityPowerPoint point : points) point.pickupByMaid(this);
+        List<EntityArrow> arrows = worldObj.getEntitiesWithinAABB(EntityArrow.class, boundingBox.expand(range, range, range));
+        for (EntityArrow arrow : arrows) {
+            if (arrow.isDead || arrow.canBePickedUp != 1 || arrow.arrowShake > 0) continue;
+            NBTTagCompound data = new NBTTagCompound(); arrow.writeToNBT(data);
+            if (!data.getBoolean("inGround")) continue;
+            if (LegacyTConstruct.pickup(this,arrow)) continue;
+            ItemStack remaining = addToMaidInventory(new ItemStack(Items.arrow));
+            if (remaining == null || remaining.stackSize <= 0) arrow.setDead();
         }
         List<EntityXPOrb> orbs = worldObj.getEntitiesWithinAABB(EntityXPOrb.class, boundingBox.expand(range, range, range));
         for (EntityXPOrb orb : orbs) {
@@ -1318,7 +1417,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
     private int findBauble(ItemMaidBauble.Type type) {
         for (int slot = 0; slot < getBaubleCapacity(); slot++) {
             ItemStack stack = maidBaubleInventory.getStackInSlot(slot);
-            if (stack != null && stack.getItem() instanceof ItemMaidBauble
+            if (stack != null && stack.stackSize > 0 && stack.getItem() instanceof ItemMaidBauble
                     && ((ItemMaidBauble) stack.getItem()).getType() == type) return 100 + slot;
         }
         return -1;
@@ -1327,7 +1426,11 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
     private void damageBauble(int slot) {
         InventoryBasic inventory = slot >= 100 ? maidBaubleInventory : maidInventory; if (slot >= 100) slot -= 100;
         ItemStack stack = inventory.getStackInSlot(slot); if (stack == null) return;
-        if (stack.isItemStackDamageable()) stack.damageItem(1, this); else --stack.stackSize;
+        if (stack.isItemStackDamageable()) {
+            stack.damageItem(1, this);
+            // 1.7 breaks at damage > max; SRC accessories break at damage >= max.
+            if (stack.stackSize > 0 && stack.getItemDamage() >= stack.getMaxDamage()) --stack.stackSize;
+        } else --stack.stackSize;
         if (stack.stackSize <= 0) inventory.setInventorySlotContents(slot, null); inventory.markDirty();
     }
 
@@ -1337,8 +1440,7 @@ public class EntityMaid extends EntityTameable implements IRangedAttackMob, cpw.
             int z = net.minecraft.util.MathHelper.floor_double(posZ) + rand.nextInt(13) - 6;
             int y = net.minecraft.util.MathHelper.floor_double(posY) + rand.nextInt(7) - 3;
             while (y > 1 && worldObj.isAirBlock(x, y - 1, z)) y--;
-            if (worldObj.isAirBlock(x, y, z) && worldObj.isAirBlock(x, y + 1, z)
-                    && worldObj.getBlock(x, y - 1, z).getMaterial().blocksMovement()) {
+            if (com.github.tartaricacid.touhoulittlemaid.entity.ai.MaidTeleportSafety.canStand(worldObj, this, x + 0.5D, y, z + 0.5D)) {
                 setPositionAndUpdate(x + 0.5D, y, z + 0.5D); getNavigator().clearPathEntity(); return true;
             }
         }

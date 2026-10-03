@@ -1,0 +1,75 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "hold_mainhand:sword": {
+      "loop": true,
+      "bones": {
+        "RightHandLocator": {
+          "scale": 0
+        },
+        "dao1": {
+          "scale": 1
+        }
+      }
+    },
+    "swing:sword": {
+      "animation_length": 0.45,
+      "bones": {
+        "RightHandLocator": {
+          "scale": 0
+        },
+        "dao1": {
+          "scale": 1
+        },
+        "RightArm": {
+          "rotation": {
+            "0.0": [
+              -35,
+              0,
+              10
+            ],
+            "0.15": [
+              -105,
+              -20,
+              20
+            ],
+            "0.3": [
+              -25,
+              25,
+              -15
+            ],
+            "0.45": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "RightForeArm": {
+          "rotation": {
+            "0.0": [
+              -20,
+              0,
+              0
+            ],
+            "0.15": [
+              -50,
+              0,
+              0
+            ],
+            "0.3": [
+              -10,
+              0,
+              0
+            ],
+            "0.45": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      }
+    }
+  }
+}

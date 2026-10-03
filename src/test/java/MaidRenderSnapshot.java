@@ -80,12 +80,16 @@ public final class MaidRenderSnapshot {
                     GL11.glPopMatrix();
                     if(column>=2){
                         GL11.glPushMatrix();
-                        if(gecko){model.postRenderHand(null,"RightHandLocator",.0625F);GL11.glRotatef(180,0,0,1);GL11.glTranslatef(0,-.0625F,-.1F);GL11.glRotatef(-90,1,0,0);}
-                        else{model.postRenderHand("armRight",null,.0625F);GL11.glRotatef(-90,1,0,0);GL11.glRotatef(180,0,1,0);GL11.glTranslatef(.0625F,.125F,-.525F);}
+                        boolean showItem=model.postRenderHand(gecko?null:"armRight",gecko?"RightHandLocator":null,.0625F);
+                        if((name.equals("winefox_magical")||name.equals("winefox_survivor"))&&column>=3&&showItem)throw new AssertionError("Magical staff must hide vanilla bow");
+                        if(showItem){
+                        if(gecko){GL11.glRotatef(180,0,0,1);GL11.glTranslatef(0,-.0625F,-.1F);GL11.glRotatef(-90,1,0,0);}
+                        else{GL11.glRotatef(-90,1,0,0);GL11.glRotatef(180,0,1,0);GL11.glTranslatef(.0625F,.125F,-.525F);}
                         com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyVanillaHandTransform.apply(com.github.tartaricacid.touhoulittlemaid.client.renderer.LegacyVanillaHandTransform.Kind.valueOf(column==2?"HANDHELD":"BOW"),false);
                         GL11.glTranslatef(0,-.3F,0);GL11.glScalef(1.5F,1.5F,1.5F);GL11.glRotatef(50,0,1,0);GL11.glRotatef(335,0,0,1);GL11.glTranslatef(-.9375F,-.0625F,0);
                         GL11.glBindTexture(GL11.GL_TEXTURE_2D,column==2?swordTexture:bowTexture);
                         net.minecraft.client.renderer.ItemRenderer.renderItemIn2D(net.minecraft.client.renderer.Tessellator.instance,1,0,0,1,16,16,.0625F);
+                        }
                         GL11.glPopMatrix();
                     }
                     ByteBuffer pixels=BufferUtils.createByteBuffer(SIZE*SIZE*4);GL11.glReadPixels(0,0,SIZE,SIZE,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,pixels);
@@ -100,7 +104,7 @@ public final class MaidRenderSnapshot {
             System.out.println("Offscreen snapshots: "+output.resolve(filename));
         }finally{buffer.destroy();}
     }
-    static Path asset(Path pack,Path assets,String id){String[] s=id.split(":",2);Path p=pack.resolveSibling(s[0]).resolve(s[1]);return Files.exists(p)?p:assets.resolve(s[0]).resolve(s[1]);}
+    static Path asset(Path pack,Path assets,String id){String[] s=id.split(":",2);Path legacy=assets.getParent().getParent().getParent().resolve("legacy/resources/assets").resolve(s[0]).resolve(s[1]);if(Files.exists(legacy))return legacy;Path p=pack.resolveSibling(s[0]).resolve(s[1]);return Files.exists(p)?p:assets.resolve(s[0]).resolve(s[1]);}
     static int upload(BufferedImage image){
         ByteBuffer rgba=BufferUtils.createByteBuffer(image.getWidth()*image.getHeight()*4);
         for(int y=0;y<image.getHeight();y++)for(int x=0;x<image.getWidth();x++){int c=image.getRGB(x,y);rgba.put((byte)(c>>16)).put((byte)(c>>8)).put((byte)c).put((byte)(c>>24));}rgba.flip();
